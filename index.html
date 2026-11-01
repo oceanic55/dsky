@@ -590,6 +590,112 @@
     box-shadow: none;
     pointer-events: none;
   }
+
+  /* ================= Alpha sheet (RSET — standard keyboard) ================= */
+
+  .alpha-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 101;
+    background: #d1d1d6;
+    border-radius: 13px 13px 0 0;
+    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.22);
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+    transform: translateY(100%);
+    transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+    user-select: none;
+    touch-action: none;
+  }
+  .alpha-sheet.is-open {
+    transform: translateY(0);
+  }
+
+  /* Top bar mirrors numpad sheet */
+  .alpha-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px 6px;
+  }
+  .alpha-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #3c3c43;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .alpha-done {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: none;
+    font-size: 17px;
+    font-weight: 600;
+    color: #007aff;
+    cursor: pointer;
+    padding: 4px 0 4px 16px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .alpha-done:active { opacity: 0.5; }
+
+  /* Live preview pips — up to 5 chars */
+  .alpha-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 4px 20px 16px;
+  }
+  .alpha-pip {
+    width: 40px;
+    height: 48px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.72);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 300;
+    color: #1c1c1e;
+    font-variant-numeric: tabular-nums;
+    transition: background 120ms;
+    text-transform: uppercase;
+  }
+  .alpha-pip.has-char {
+    background: #ffffff;
+    color: #007aff;
+    font-weight: 400;
+  }
+
+  /* The text field — visible, tappable, summons OS keyboard on tap */
+  .alpha-input {
+    display: block;
+    width: calc(100% - 40px);
+    margin: 0 20px 16px;
+    padding: 13px 14px;
+    border-radius: 10px;
+    border: none;
+    outline: none;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.14);
+    font-size: 20px;          /* ≥16px prevents iOS auto-zoom */
+    font-weight: 400;
+    color: #007aff;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-align: center;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    caret-color: #007aff;
+  }
+  .alpha-input::placeholder {
+    color: #c7c7cc;
+    letter-spacing: 0;
+    font-weight: 300;
+  }
 </style>
 </head>
 <body>
@@ -675,7 +781,7 @@
                 <span class="sep s2"></span>
                 <span class="sep s3"></span>
 
-                <div class="reg-row r1">
+                <div class="reg-row r1" id="r1-row">
                   <span class="reg-label">R1</span>
                   <div class="reg">
                     <span class="reg-cell sign"></span>
@@ -806,6 +912,39 @@
 
   </div>
 
+  <!-- ============================================================
+       Alpha sheet — shown when RSET is pressed
+       iOS HIG: backdrop shared with numpad, bottom sheet,
+       native OS keyboard via hidden input, 5-char max, → R1 field
+       ============================================================ -->
+  <div class="alpha-sheet" id="alpha-sheet"
+       role="dialog" aria-modal="true" aria-label="Enter R1 value">
+
+    <div class="numpad-handle" aria-hidden="true"></div>
+
+    <div class="alpha-bar">
+      <span class="alpha-title">R1</span>
+      <button class="alpha-done" id="alpha-done" type="button">Done</button>
+    </div>
+
+    <input class="alpha-input" id="alpha-input"
+           type="text" inputmode="text" autocomplete="off"
+           autocorrect="off" autocapitalize="characters"
+           spellcheck="false" maxlength="5"
+           placeholder="Enter up to 5 characters"
+           aria-label="R1 entry" />
+
+    <!-- Live preview: 5 pip tiles -->
+    <div class="alpha-preview" aria-live="polite" aria-label="Current R1 entry">
+      <div class="alpha-pip" id="alpha-pip-0">–</div>
+      <div class="alpha-pip" id="alpha-pip-1">–</div>
+      <div class="alpha-pip" id="alpha-pip-2">–</div>
+      <div class="alpha-pip" id="alpha-pip-3">–</div>
+      <div class="alpha-pip" id="alpha-pip-4">–</div>
+    </div>
+
+  </div>
+
 <script>
   (() => {
     /* ------------------------------------------------------------------ */
@@ -844,13 +983,61 @@
       9: [SEG.TOP, SEG.TR, SEG.TL, SEG.MID, SEG.BR, SEG.BOT],
     };
 
-    /* Build an SVG element for a given digit (0-9) */
-    const makeSVG = (d) => {
-      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    /* 7-segment approximations for A-Z (and space).
+       Letters that share a digit shape reuse it directly.
+       Characters that can't be represented cleanly render as blank. */
+    const GLYPHS = {
+      ' ': [],
+      'A': [SEG.TOP, SEG.TL, SEG.TR, SEG.MID, SEG.BL, SEG.BR],
+      'B': [SEG.TL, SEG.MID, SEG.BR, SEG.BL, SEG.BOT],          /* looks like lowercase b */
+      'C': [SEG.TOP, SEG.TL, SEG.BL, SEG.BOT],
+      'D': [SEG.TR, SEG.MID, SEG.BR, SEG.BL, SEG.BOT],           /* looks like lowercase d */
+      'E': [SEG.TOP, SEG.TL, SEG.MID, SEG.BL, SEG.BOT],
+      'F': [SEG.TOP, SEG.TL, SEG.MID, SEG.BL],
+      'G': [SEG.TOP, SEG.TL, SEG.MID, SEG.BR, SEG.BL, SEG.BOT],  /* same as 6 */
+      'H': [SEG.TL, SEG.TR, SEG.MID, SEG.BL, SEG.BR],
+      'I': [SEG.TR, SEG.BR],                                       /* same as 1 */
+      'J': [SEG.TOP, SEG.TR, SEG.BR, SEG.BL, SEG.BOT],
+      'K': [SEG.TL, SEG.MID, SEG.BL],                             /* best 7-seg approx */
+      'L': [SEG.TL, SEG.BL, SEG.BOT],
+      'M': [SEG.TOP, SEG.TL, SEG.TR, SEG.BL, SEG.BR],            /* no crossbar — M approx */
+      'N': [SEG.TL, SEG.MID, SEG.BR, SEG.BL],                    /* lowercase n shape */
+      'O': [SEG.TOP, SEG.TL, SEG.TR, SEG.BL, SEG.BR, SEG.BOT],  /* same as 0 */
+      'P': [SEG.TOP, SEG.TL, SEG.TR, SEG.MID, SEG.BL],
+      'Q': [SEG.TOP, SEG.TL, SEG.TR, SEG.MID, SEG.BR, SEG.BOT],  /* same as 9 */
+      'R': [SEG.MID, SEG.BL],                                     /* lowercase r */
+      'S': [SEG.TOP, SEG.TL, SEG.MID, SEG.BR, SEG.BOT],          /* same as 5 */
+      'T': [SEG.TL, SEG.MID, SEG.BL, SEG.BOT],                   /* lowercase t */
+      'U': [SEG.TL, SEG.TR, SEG.BL, SEG.BR, SEG.BOT],
+      'V': [SEG.TL, SEG.BL, SEG.BR, SEG.BOT],                    /* best approx */
+      'W': [SEG.TL, SEG.TR, SEG.BL, SEG.BR, SEG.BOT],            /* same as U */
+      'X': [SEG.TL, SEG.TR, SEG.MID, SEG.BL, SEG.BR],            /* like H */
+      'Y': [SEG.TL, SEG.TR, SEG.MID, SEG.BR, SEG.BOT],           /* same as 9 shape */
+      'Z': [SEG.TOP, SEG.TR, SEG.MID, SEG.BL, SEG.BOT],          /* same as 2 */
+      /* Digits duplicated so lookup works on raw char '0'-'9' too */
+      '0': [SEG.TOP, SEG.TR, SEG.TL, SEG.BR, SEG.BL, SEG.BOT],
+      '1': [SEG.TR, SEG.BR],
+      '2': [SEG.TOP, SEG.TR, SEG.MID, SEG.BL, SEG.BOT],
+      '3': [SEG.TOP, SEG.TR, SEG.MID, SEG.BR, SEG.BOT],
+      '4': [SEG.TL, SEG.TR, SEG.MID, SEG.BR],
+      '5': [SEG.TOP, SEG.TL, SEG.MID, SEG.BR, SEG.BOT],
+      '6': [SEG.TOP, SEG.TL, SEG.MID, SEG.BR, SEG.BL, SEG.BOT],
+      '7': [SEG.TOP, SEG.TR, SEG.BR],
+      '8': [SEG.TOP, SEG.TR, SEG.TL, SEG.MID, SEG.BR, SEG.BL, SEG.BOT],
+      '9': [SEG.TOP, SEG.TR, SEG.TL, SEG.MID, SEG.BR, SEG.BOT],
+    };
+
+    /* Build an SVG element for a single character.
+       w/h let callers size it to the cell (26×30 for .digit, 22×25 for .reg-cell). */
+    const makeSVG = (ch, w, h) => {
+      w = w || 26; h = h || 30;
+      const key  = String(ch).toUpperCase();
+      const segs = GLYPHS[key] ?? DIGITS[parseInt(key, 10)] ?? [];
+      const svg  = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("viewBox", "0 0 26 30");
       svg.setAttribute("aria-hidden", "true");
-      svg.style.cssText = "display:block;width:26px;height:30px;";
-      (DIGITS[d] || []).forEach(pts => {
+      svg.style.cssText = `display:block;width:${w}px;height:${h}px;`;
+      segs.forEach(pts => {
         const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
         poly.setAttribute("class", "seg");
         poly.setAttribute("points", pts);
@@ -862,12 +1049,10 @@
     /* Write a two-digit value into a .digits container */
     const renderTwoDigits = (container, twoDigitStr) => {
       const cells = container.querySelectorAll('.digit');
-      const d0 = parseInt(twoDigitStr[0], 10);
-      const d1 = parseInt(twoDigitStr[1], 10);
-      [d0, d1].forEach((d, i) => {
+      [0, 1].forEach(i => {
         cells[i].innerHTML = '';
         cells[i].style.visibility = 'visible';
-        cells[i].appendChild(makeSVG(d));
+        cells[i].appendChild(makeSVG(twoDigitStr[i]));  /* 26×30 default */
       });
     };
 
@@ -920,6 +1105,32 @@
     const verbDigits  = verbDisplay.querySelector('.digits');      /* digit cells inside VERB */
     const nounDigits  = nounDisplay.querySelector('.digits');      /* digit cells inside NOUN */
     const progDigits  = document.getElementById('prog-digits');   /* digit cells inside PROG */
+    const r1Row       = document.getElementById('r1-row');        /* R1 register row */
+    const r1Cells     = r1Row.querySelectorAll('.reg-cell:not(.sign)'); /* 5 data cells */
+
+    /* ------------------------------------------------------------------ */
+    /* R1 renderer — writes up to 5 glyphs as 7-segment SVGs               */
+    /* reg-cells are 22×25px, same viewBox as digits but scaled down       */
+    /* ------------------------------------------------------------------ */
+    const renderR1 = (str) => {
+      const upper = str.toUpperCase().slice(0, 5);
+      r1Cells.forEach((cell, i) => {
+        cell.innerHTML = '';
+        if (upper[i] !== undefined) {
+          cell.style.visibility = 'visible';
+          cell.appendChild(makeSVG(upper[i], 22, 25));
+        } else {
+          cell.style.visibility = 'hidden';
+        }
+      });
+    };
+
+    const clearR1 = () => {
+      r1Cells.forEach(cell => {
+        cell.innerHTML = '';
+        cell.style.visibility = 'hidden';
+      });
+    };
 
     /* ------------------------------------------------------------------ */
     /* Numeric pad sheet                                                    */
@@ -1025,8 +1236,75 @@
     /* Done button */
     doneBtn.addEventListener('click', commitNumpad);
 
-    /* Tap backdrop to dismiss without committing */
-    backdrop.addEventListener('pointerup', closeNumpad);
+    /* Tap backdrop to dismiss without committing (numpad only) */
+    backdrop.addEventListener('pointerup', () => {
+      if (sheet.classList.contains('is-open')) closeNumpad();
+    });
+
+    /* ------------------------------------------------------------------ */
+    /* Alpha sheet (RSET → R1)                                             */
+    /* ------------------------------------------------------------------ */
+    const alphaSheet  = document.getElementById('alpha-sheet');
+    const alphaInput  = document.getElementById('alpha-input');
+    const alphaDone   = document.getElementById('alpha-done');
+    const alphaPips   = [0,1,2,3,4].map(i => document.getElementById('alpha-pip-' + i));
+
+    const updateAlphaPips = (val) => {
+      alphaPips.forEach((pip, i) => {
+        if (val[i] !== undefined) {
+          pip.textContent = val[i].toUpperCase();
+          pip.classList.add('has-char');
+        } else {
+          pip.textContent = '–';
+          pip.classList.remove('has-char');
+        }
+      });
+    };
+
+    const openAlpha = () => {
+      alphaInput.value = '';
+      updateAlphaPips('');
+      backdrop.classList.add('is-open');
+      alphaSheet.classList.add('is-open');
+      /* Must call focus() synchronously inside the gesture handler
+         so iOS treats it as a direct user-initiated focus — any
+         delay (setTimeout) breaks the gesture chain and the keyboard
+         never appears. The visible input also gives a tap fallback. */
+      alphaInput.focus();
+    };
+
+    const closeAlpha = () => {
+      alphaInput.blur();
+      backdrop.classList.remove('is-open');
+      alphaSheet.classList.remove('is-open');
+    };
+
+    const commitAlpha = () => {
+      const val = alphaInput.value.trim();
+      if (val.length > 0) renderR1(val);
+      closeAlpha();
+    };
+
+    /* Keep pips in sync with every keystroke */
+    alphaInput.addEventListener('input', () => {
+      /* Enforce 5-char cap (maxlength alone isn't reliable on all iOS versions) */
+      if (alphaInput.value.length > 5) {
+        alphaInput.value = alphaInput.value.slice(0, 5);
+      }
+      updateAlphaPips(alphaInput.value);
+    });
+
+    /* "Go" / "Return" on the software keyboard commits */
+    alphaInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commitAlpha(); }
+    });
+
+    alphaDone.addEventListener('click', commitAlpha);
+
+    /* Tapping the backdrop dismisses without committing (alpha only) */
+    backdrop.addEventListener('pointerup', () => {
+      if (alphaSheet.classList.contains('is-open')) closeAlpha();
+    });
 
     /* ------------------------------------------------------------------ */
     /* Main keypad (DSKY hardware keys)                                     */
@@ -1053,10 +1331,15 @@
           cell.innerHTML = '';
           cell.style.visibility = 'hidden';
         });
+        clearR1();
 
       } else if (name === 'STBY') {
         /* Open numeric pad targeting the PROG display field */
         openNumpad('prog');
+
+      } else if (name === 'RSET') {
+        /* Open alpha sheet targeting the R1 register field */
+        openAlpha();
       }
     };
 
