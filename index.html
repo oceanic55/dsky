@@ -152,10 +152,11 @@
 
   .comp-acty {
     position: absolute;
-    left: 8px;
-    top: 8px;
-    width: 52px;
-    height: 42px;
+    left: 7px;
+    top: 7px;
+    width: 70px;
+    height: 70px;
+    border-radius: 4px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -163,7 +164,17 @@
     font-size: 10.08px;
     font-weight: 700;
     line-height: 12px;
-    color: #2a3a2e;
+    color: #9fb3a4;              /* light text readable on dark background */
+    /* off state — transparent, blends into the screen */
+    background: transparent;
+    transition: background 200ms ease, box-shadow 200ms ease;
+  }
+
+  /* COMP REDY lit — full green square, text stays readable */
+  .comp-acty.is-ready {
+    background: #35d39a;
+    box-shadow: 0 0 10px 3px rgba(53, 211, 154, 0.6);
+    color: #101b16;
   }
 
   .dot {
@@ -736,7 +747,7 @@
               <div class="bezel"></div>
               <div class="screen">
 
-                <div class="comp-acty"><span>COMP</span><span>ACTY</span></div>
+                <div class="comp-acty" id="comp-redy"><span>COMP</span><span>REDY</span></div>
 
                 <span class="dot d1"></span>
                 <span class="dot d2"></span>
@@ -830,10 +841,10 @@
                   <span class="key-bevel" aria-hidden="true"></span>
                   <span class="key-label">NOUN</span>
                 </button>
-                <button class="k stby" type="button" data-key="STBY" data-sound="5" aria-label="STBY">
+                <button class="k stby" type="button" data-key="PROG" data-sound="5" aria-label="PROG">
                   <span class="key-face" aria-hidden="true"></span>
                   <span class="key-bevel" aria-hidden="true"></span>
-                  <span class="key-label">STBY</span>
+                  <span class="key-label">PROG</span>
                 </button>
                 <button class="k rset" type="button" data-key="RSET" data-sound="5" aria-label="RSET">
                   <span class="key-face" aria-hidden="true"></span>
@@ -1110,6 +1121,11 @@
     const progDigits  = document.getElementById('prog-digits');   /* digit cells inside PROG */
     const r1Row       = document.getElementById('r1-row');        /* R1 register row */
     const r1Cells     = r1Row.querySelectorAll('.reg-cell:not(.sign)'); /* 5 data cells */
+    const r2Row       = document.getElementById('r2-row');        /* R2 register row */
+    const r2Cells     = r2Row.querySelectorAll('.reg-cell:not(.sign)');
+    const r3Row       = document.getElementById('r3-row');        /* R3 register row */
+    const r3Cells     = r3Row.querySelectorAll('.reg-cell:not(.sign)');
+    const compRedy    = document.getElementById('comp-redy');     /* COMP REDY panel */
 
     /* ------------------------------------------------------------------ */
     /* Display state — single source of truth for all field values         */
@@ -1162,6 +1178,7 @@
           if (entry.r1)   { renderR1(entry.r1);                      displayState.r1   = entry.r1;   }
 
           syncEntrBtn();
+          syncCompRedy();
         } catch (_) { /* silently ignore malformed files */ }
       };
       reader.readAsText(file);
@@ -1174,6 +1191,21 @@
 
     /* Set initial ENTR/LOAD state on page load (all fields empty = LOAD) */
     syncEntrBtn();
+
+    /* ------------------------------------------------------------------ */
+    /* COMP REDY indicator                                                  */
+    /* Lights green when PROG + VERB + NOUN + at least one Rx are all set  */
+    /* ------------------------------------------------------------------ */
+    const syncCompRedy = () => {
+      const rxFilled = displayState.r1 !== '' ||
+                       displayState.r2 !== '' ||
+                       displayState.r3 !== '';
+      const ready = displayState.prog !== '' &&
+                    displayState.verb !== '' &&
+                    displayState.noun !== '' &&
+                    rxFilled;
+      compRedy.classList.toggle('is-ready', ready);
+    };
 
     /* ------------------------------------------------------------------ */
     /* R1 renderer — writes up to 5 glyphs as 7-segment SVGs               */
@@ -1198,6 +1230,26 @@
         cell.style.visibility = 'hidden';
       });
       displayState.r1 = '';
+    };
+
+    /* Generic Rx renderer used by RSET routing */
+    const renderRx = (cells, str, stateKey) => {
+      const upper = str.toUpperCase().slice(0, 5);
+      cells.forEach((cell, i) => {
+        cell.innerHTML = '';
+        if (upper[i] !== undefined) {
+          cell.style.visibility = 'visible';
+          cell.appendChild(makeSVG(upper[i]));
+        } else {
+          cell.style.visibility = 'hidden';
+        }
+      });
+      displayState[stateKey] = upper;
+    };
+
+    const clearRx = (cells, stateKey) => {
+      cells.forEach(cell => { cell.innerHTML = ''; cell.style.visibility = 'hidden'; });
+      displayState[stateKey] = '';
     };
 
     /* ------------------------------------------------------------------ */
@@ -1247,8 +1299,22 @@
     };
 
     const commitNumpad = () => {
-      /* Pad to 2 digits — leading zero if only one digit entered */
       if (numpadEntry.length === 0) { closeNumpad(); return; }
+
+      /* PROG field only accepts 1, 2, or 3 */
+      if (numpadTarget === 'prog') {
+        const d = numpadEntry[0];
+        if (!['1','2','3'].includes(d)) { closeNumpad(); return; }
+        const padded = '0' + d;   /* always "01", "02", "03" */
+        renderTwoDigits(progDigits, padded);
+        displayState.prog = padded;
+        syncEntrBtn();
+        syncCompRedy();
+        closeNumpad();
+        return;
+      }
+
+      /* VERB / NOUN: pad to 2 digits with leading zero if needed */
       const padded = numpadEntry.length === 1
         ? '0' + numpadEntry[0]
         : numpadEntry.join('');
@@ -1259,11 +1325,9 @@
       } else if (numpadTarget === 'noun') {
         renderTwoDigits(nounDigits, padded);
         displayState.noun = padded;
-      } else if (numpadTarget === 'prog') {
-        renderTwoDigits(progDigits, padded);
-        displayState.prog = padded;
       }
       syncEntrBtn();
+      syncCompRedy();
       closeNumpad();
     };
 
@@ -1276,11 +1340,13 @@
 
       const tap = () => {
         if (numpadEntry.length >= 2) return;   /* 2-digit cap */
+        /* PROG only accepts 1, 2, 3 — reject other digits immediately */
+        if (numpadTarget === 'prog' && !['1','2','3'].includes(nk.dataset.nk)) return;
         numpadEntry.push(nk.dataset.nk);
         updatePips();
         flash();
-        /* Auto-commit once 2 digits entered */
-        if (numpadEntry.length === 2) {
+        /* Auto-commit: after 2nd digit normally, or immediately for PROG */
+        if (numpadEntry.length === 2 || numpadTarget === 'prog') {
           setTimeout(commitNumpad, 180);
         }
       };
@@ -1318,7 +1384,8 @@
       if (e.key >= '0' && e.key <= '9') {
         e.preventDefault();
         if (numpadEntry.length >= 2) return;
-        /* Flash the matching on-screen key for feedback */
+        /* PROG only accepts 1, 2, 3 */
+        if (numpadTarget === 'prog' && !['1','2','3'].includes(e.key)) return;
         const matchKey = sheet.querySelector(`.nk[data-nk="${e.key}"]`);
         if (matchKey) {
           matchKey.classList.add('is-pressed');
@@ -1326,7 +1393,9 @@
         }
         numpadEntry.push(e.key);
         updatePips();
-        if (numpadEntry.length === 2) setTimeout(commitNumpad, 180);
+        if (numpadEntry.length === 2 || numpadTarget === 'prog') {
+          setTimeout(commitNumpad, 180);
+        }
       } else if (e.key === 'Backspace') {
         e.preventDefault();
         numpadEntry.pop();
@@ -1346,12 +1415,23 @@
     });
 
     /* ------------------------------------------------------------------ */
-    /* Alpha sheet (RSET → R1)                                             */
+    /* Alpha sheet (RSET → Rx, routed by PROG value)                       */
+    /* PROG=01 → R1, PROG=02 → R2, PROG=03 → R3                           */
     /* ------------------------------------------------------------------ */
     const alphaSheet  = document.getElementById('alpha-sheet');
     const alphaInput  = document.getElementById('alpha-input');
     const alphaDone   = document.getElementById('alpha-done');
     const alphaPips   = [0,1,2,3,4].map(i => document.getElementById('alpha-pip-' + i));
+    const alphaTitle  = document.querySelector('.alpha-title');
+
+    /* Resolve which Rx to write based on PROG */
+    const getRxTarget = () => {
+      const p = displayState.prog;
+      if (p === '01') return { cells: r1Cells, key: 'r1', label: 'R1' };
+      if (p === '02') return { cells: r2Cells, key: 'r2', label: 'R2' };
+      if (p === '03') return { cells: r3Cells, key: 'r3', label: 'R3' };
+      return { cells: r1Cells, key: 'r1', label: 'R1' }; /* default if PROG unset */
+    };
 
     const updateAlphaPips = (val) => {
       alphaPips.forEach((pip, i) => {
@@ -1366,14 +1446,12 @@
     };
 
     const openAlpha = () => {
+      const rx = getRxTarget();
+      alphaTitle.textContent = rx.label;         /* show R1, R2 or R3 */
       alphaInput.value = '';
       updateAlphaPips('');
       backdrop.classList.add('is-open');
       alphaSheet.classList.add('is-open');
-      /* Must call focus() synchronously inside the gesture handler
-         so iOS treats it as a direct user-initiated focus — any
-         delay (setTimeout) breaks the gesture chain and the keyboard
-         never appears. The visible input also gives a tap fallback. */
       alphaInput.focus();
     };
 
@@ -1386,9 +1464,10 @@
     const commitAlpha = () => {
       const val = alphaInput.value.trim();
       if (val.length > 0) {
-        renderR1(val);
-        displayState.r1 = val.toUpperCase().slice(0, 5);
+        const rx = getRxTarget();
+        renderRx(rx.cells, val, rx.key);
         syncEntrBtn();
+        syncCompRedy();
       }
       closeAlpha();
     };
@@ -1435,6 +1514,7 @@
       displayState.prog = '';
       /* r2/r3 always '' until input is implemented */
       syncEntrBtn();
+      syncCompRedy();
     };
 
     const saveEntry = () => {
@@ -1517,9 +1597,10 @@
         displayState.noun = '';
         displayState.prog = '';
         syncEntrBtn();   /* update ENTR/LOAD state after clear */
+        syncCompRedy();
 
-      } else if (name === 'STBY') {
-        /* Open numeric pad targeting the PROG display field */
+      } else if (name === 'PROG') {
+        /* Open numeric pad targeting the PROG display field (1, 2, or 3 only) */
         openNumpad('prog');
 
       } else if (name === 'RSET') {
