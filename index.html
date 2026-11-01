@@ -244,14 +244,14 @@
     left: 8px;
     display: flex;
     align-items: center;
-    gap: 3px;
+    gap: 1px;
   }
   .reg-row.r1 { top: 153px; }
   .reg-row.r2 { top: 208px; }
   .reg-row.r3 { top: 263px; }
 
   .reg-label {
-    width: 12px;
+    width: 8px;
     font-size: 7px;
     font-weight: 700;
     text-align: center;
@@ -262,12 +262,12 @@
     display: flex;
     align-items: center;
     gap: 1.5px;
-    padding: 3px 4px;
-    height: 31px;
+    padding: 3px 0px;
+    height: 36px;
   }
   .reg-cell {
-    height: 25px;
-    width: 22px;
+    height: 30px;
+    width: 26px;
   }
   .reg-cell.sign { width: 12.1px; }
 
@@ -591,6 +591,21 @@
     pointer-events: none;
   }
 
+  /* Hidden input to capture physical keyboard for numpad sheet */
+  .numpad-input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 1px;
+    height: 1px;
+    left: 0;
+    top: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 16px;
+  }
+
   /* ================= Alpha sheet (RSET — standard keyboard) ================= */
 
   .alpha-sheet {
@@ -709,7 +724,7 @@
 
             <!-- Display panel -->
             <div class="display" role="img"
-                 aria-label="DSKY display: PROG blank, VERB 16, NOUN 36">
+                 aria-label="DSKY display: all fields blank">
               <div class="bezel"></div>
               <div class="screen">
 
@@ -728,52 +743,21 @@
                   </div>
                 </div>
 
-                <!-- VERB 16 -->
+                <!-- VERB (blank on load) -->
                 <div class="two-digit verb" id="verb-display">
                   <div class="pill">VERB</div>
                   <div class="digits">
-                    <div class="digit">
-                      <svg viewBox="0 0 26 30" aria-hidden="true">
-                        <polygon class="seg" points="23.5,0 27.2,0 23.3,14.7 19.6,14.7"/>
-                        <polygon class="seg" points="19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6"/>
-                      </svg>
-                    </div>
-                    <div class="digit">
-                      <svg viewBox="0 0 26 30" aria-hidden="true">
-                        <polygon class="seg" points="8.3,0 22.6,0 21.6,3.6 10.8,3.6"/>
-                        <polygon class="seg" points="7.6,0.6 3.8,14.7 7.5,14.7 10.3,4.3"/>
-                        <polygon class="seg" points="8.8,13.2 19.1,13.2 18.1,17.1 7.8,17.1"/>
-                        <polygon class="seg" points="19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6"/>
-                        <polygon class="seg" points="3.6,15.6 0,29.3 4.6,25.7 7.3,15.6"/>
-                        <polygon class="seg" points="0.5,30 18.7,30 15.8,26.1 5.5,26.1"/>
-                      </svg>
-                    </div>
+                    <div class="digit"></div>
+                    <div class="digit"></div>
                   </div>
                 </div>
 
-                <!-- NOUN 36 -->
+                <!-- NOUN (blank on load) -->
                 <div class="two-digit noun" id="noun-display">
                   <div class="pill">NOUN</div>
                   <div class="digits">
-                    <div class="digit">
-                      <svg viewBox="0 0 26 30" aria-hidden="true">
-                        <polygon class="seg" points="8.3,0 22.6,0 21.6,3.6 10.8,3.6"/>
-                        <polygon class="seg" points="23.5,0 27.2,0 23.3,14.7 19.6,14.7"/>
-                        <polygon class="seg" points="8.8,13.2 19.1,13.2 18.1,17.1 7.8,17.1"/>
-                        <polygon class="seg" points="19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6"/>
-                        <polygon class="seg" points="0.5,30 18.7,30 15.8,26.1 5.5,26.1"/>
-                      </svg>
-                    </div>
-                    <div class="digit">
-                      <svg viewBox="0 0 26 30" aria-hidden="true">
-                        <polygon class="seg" points="8.3,0 22.6,0 21.6,3.6 10.8,3.6"/>
-                        <polygon class="seg" points="7.6,0.6 3.8,14.7 7.5,14.7 10.3,4.3"/>
-                        <polygon class="seg" points="8.8,13.2 19.1,13.2 18.1,17.1 7.8,17.1"/>
-                        <polygon class="seg" points="19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6"/>
-                        <polygon class="seg" points="3.6,15.6 0,29.3 4.6,25.7 7.3,15.6"/>
-                        <polygon class="seg" points="0.5,30 18.7,30 15.8,26.1 5.5,26.1"/>
-                      </svg>
-                    </div>
+                    <div class="digit"></div>
+                    <div class="digit"></div>
                   </div>
                 </div>
 
@@ -791,7 +775,7 @@
                   </div>
                 </div>
 
-                <div class="reg-row r2">
+                <div class="reg-row r2" id="r2-row">
                   <span class="reg-label">R2</span>
                   <div class="reg">
                     <span class="reg-cell sign"></span>
@@ -801,7 +785,7 @@
                   </div>
                 </div>
 
-                <div class="reg-row r3">
+                <div class="reg-row r3" id="r3-row">
                   <span class="reg-label">R3</span>
                   <div class="reg">
                     <span class="reg-cell sign"></span>
@@ -818,7 +802,7 @@
             <div class="keypad">
 
               <div class="grid">
-                <button class="k verb" type="button" data-key="VERB" data-sound="4" aria-label="VERB">
+                <button class="k verb" type="button" data-key="VERB" data-sound="5" aria-label="VERB">
                   <span class="key-face" aria-hidden="true"></span>
                   <span class="key-bevel" aria-hidden="true"></span>
                   <span class="key-label">VERB</span>
@@ -833,7 +817,7 @@
                   <span class="key-bevel" aria-hidden="true"></span>
                   <span class="key-label">ENTR</span>
                 </button>
-                <button class="k noun" type="button" data-key="NOUN" data-sound="4" aria-label="NOUN">
+                <button class="k noun" type="button" data-key="NOUN" data-sound="5" aria-label="NOUN">
                   <span class="key-face" aria-hidden="true"></span>
                   <span class="key-bevel" aria-hidden="true"></span>
                   <span class="key-label">NOUN</span>
@@ -843,7 +827,7 @@
                   <span class="key-bevel" aria-hidden="true"></span>
                   <span class="key-label">STBY</span>
                 </button>
-                <button class="k rset" type="button" data-key="RSET" data-sound="7" aria-label="RSET">
+                <button class="k rset" type="button" data-key="RSET" data-sound="5" aria-label="RSET">
                   <span class="key-face" aria-hidden="true"></span>
                   <span class="key-bevel" aria-hidden="true"></span>
                   <span class="key-label">RSET</span>
@@ -860,7 +844,7 @@
           </div>
         </div>
       </div>
-      <span class="caption">Display panel · PROG 16 36 · 3 × 2 function keys · 4 corner screws</span>
+      <span class="caption">Display panel · PROG VERB NOUN R1 R2 R3 · 3 × 2 function keys · 4 corner screws</span>
     </main>
 
   </div>
@@ -910,10 +894,13 @@
       </button>
     </div>
 
-  </div>
+    <!-- Hidden input so physical keyboard digits feed into numpadEntry -->
+    <input class="numpad-input" id="numpad-input"
+           type="text" inputmode="numeric" autocomplete="off"
+           autocorrect="off" autocapitalize="off" spellcheck="false"
+           maxlength="2" aria-hidden="true" tabindex="-1" />
 
-  <!-- ============================================================
-       Alpha sheet — shown when RSET is pressed
+  </div> — shown when RSET is pressed
        iOS HIG: backdrop shared with numpad, bottom sheet,
        native OS keyboard via hidden input, 5-char max, → R1 field
        ============================================================ -->
@@ -1110,7 +1097,7 @@
 
     /* ------------------------------------------------------------------ */
     /* R1 renderer — writes up to 5 glyphs as 7-segment SVGs               */
-    /* reg-cells are 22×25px, same viewBox as digits but scaled down       */
+    /* reg-cells are 26×30px, matching .digit cells in VERB/NOUN/PROG      */
     /* ------------------------------------------------------------------ */
     const renderR1 = (str) => {
       const upper = str.toUpperCase().slice(0, 5);
@@ -1118,7 +1105,7 @@
         cell.innerHTML = '';
         if (upper[i] !== undefined) {
           cell.style.visibility = 'visible';
-          cell.appendChild(makeSVG(upper[i], 22, 25));
+          cell.appendChild(makeSVG(upper[i]));   /* 26×30 default — same as VERB/NOUN */
         } else {
           cell.style.visibility = 'hidden';
         }
@@ -1139,6 +1126,7 @@
     const sheet        = document.getElementById('numpad-sheet');
     const doneBtn      = document.getElementById('numpad-done');
     const backBtn      = document.getElementById('numpad-back');
+    const numpadInput  = document.getElementById('numpad-input');
     const pip0         = document.getElementById('numpad-pip-0');
     const pip1         = document.getElementById('numpad-pip-1');
     const sheetTitle   = document.querySelector('.numpad-title');  /* dynamic label */
@@ -1161,11 +1149,13 @@
     const openNumpad = (target) => {
       numpadTarget = target;
       numpadEntry  = [];
-      sheetTitle.textContent = target.toUpperCase();   /* "VERB" or "NOUN" */
+      sheetTitle.textContent = target.toUpperCase();
       sheet.setAttribute('aria-label', 'Enter ' + target.toUpperCase() + ' code');
       updatePips();
       backdrop.classList.add('is-open');
       sheet.classList.add('is-open');
+      numpadInput.value = '';
+      numpadInput.focus();   /* capture physical keyboard — synchronous in gesture handler */
       doneBtn.focus();
     };
 
@@ -1235,6 +1225,35 @@
 
     /* Done button */
     doneBtn.addEventListener('click', commitNumpad);
+
+    /* Physical keyboard → numpadEntry                                      */
+    /* keydown handles digits + backspace + Enter reliably across browsers  */
+    document.addEventListener('keydown', (e) => {
+      if (!sheet.classList.contains('is-open')) return;
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        if (numpadEntry.length >= 2) return;
+        /* Flash the matching on-screen key for feedback */
+        const matchKey = sheet.querySelector(`.nk[data-nk="${e.key}"]`);
+        if (matchKey) {
+          matchKey.classList.add('is-pressed');
+          setTimeout(() => matchKey.classList.remove('is-pressed'), 80);
+        }
+        numpadEntry.push(e.key);
+        updatePips();
+        if (numpadEntry.length === 2) setTimeout(commitNumpad, 180);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        numpadEntry.pop();
+        updatePips();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        commitNumpad();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeNumpad();
+      }
+    });
 
     /* Tap backdrop to dismiss without committing (numpad only) */
     backdrop.addEventListener('pointerup', () => {
