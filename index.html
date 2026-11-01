@@ -416,6 +416,180 @@
       0 calc(var(--w) * 0.04) calc(var(--w) * 0.05) rgba(0,0,0,.65),
       0 0 0 2px rgba(53, 211, 154, 0.55);
   }
+
+  /* ================= Numeric pad sheet (iOS HIG) ================= */
+
+  /* Full-screen backdrop — blurs content behind, dims slightly */
+  .numpad-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 260ms ease;
+  }
+  .numpad-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Sheet — slides up from bottom */
+  .numpad-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 101;
+    background: #d1d1d6;           /* iOS system grouped background */
+    border-radius: 13px 13px 0 0;
+    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.22);
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+    transform: translateY(100%);
+    transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+    user-select: none;
+    touch-action: none;
+  }
+  .numpad-sheet.is-open {
+    transform: translateY(0);
+  }
+
+  /* Drag handle pill */
+  .numpad-handle {
+    width: 36px;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(60, 60, 67, 0.3);
+    margin: 8px auto 0;
+  }
+
+  /* Top bar: title + Done */
+  .numpad-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 20px 2px;
+  }
+  .numpad-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #3c3c43;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .numpad-done {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: none;
+    font-size: 17px;
+    font-weight: 600;
+    color: #007aff;               /* iOS blue */
+    cursor: pointer;
+    padding: 4px 0 4px 16px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .numpad-done:active { opacity: 0.5; }
+
+  /* Entry preview — shows the digits typed so far */
+  .numpad-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 20px 10px;
+  }
+  .numpad-pip {
+    width: 44px;
+    height: 52px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.72);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    font-weight: 300;
+    color: #1c1c1e;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -1px;
+    transition: background 120ms;
+  }
+  .numpad-pip.has-digit {
+    background: #ffffff;
+    color: #007aff;
+    font-weight: 400;
+  }
+
+  /* Key grid */
+  .numpad-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 4px 12px 12px;
+  }
+
+  /* Individual numpad key */
+  .nk {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+    user-select: none;
+
+    /* Sizing */
+    height: 56px;
+    border-radius: 10px;
+
+    /* iOS default key look */
+    background: #ffffff;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.22), inset 0 0.5px 0 rgba(255,255,255,0.9);
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+
+    transition: background 60ms, transform 60ms;
+  }
+  .nk:active,
+  .nk.is-pressed {
+    background: #aeb0b5;           /* iOS pressed key colour */
+    transform: scale(0.96);
+    box-shadow: 0 0 0 rgba(0,0,0,0.1);
+  }
+
+  /* Digit (large) and sub-label (small, like "ABC") */
+  .nk-digit {
+    font-size: 26px;
+    font-weight: 400;
+    line-height: 1;
+    color: #1c1c1e;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Backspace key */
+  .nk.backspace {
+    background: #aeb5bd;
+  }
+  .nk.backspace:active,
+  .nk.backspace.is-pressed {
+    background: #8e9198;
+  }
+
+  /* Empty placeholder (spans nothing) */
+  .nk.phantom {
+    background: transparent;
+    box-shadow: none;
+    pointer-events: none;
+  }
 </style>
 </head>
 <body>
@@ -439,17 +613,34 @@
                 <span class="dot d2"></span>
                 <span class="dot d3"></span>
 
-                <!-- PROG (blank digits) -->
-                <div class="two-digit prog">
+                <!-- PROG (digits hidden by default, "45" shown when STBY pressed) -->
+                <div class="two-digit prog" id="prog-display">
                   <div class="pill">PROG</div>
-                  <div class="digits">
-                    <div class="digit"></div>
-                    <div class="digit"></div>
+                  <div class="digits" id="prog-digits">
+                    <!-- digit 4: top-left, top-right, middle, bottom-right -->
+                    <div class="digit" id="prog-d1" style="visibility:hidden">
+                      <svg viewBox="0 0 26 30" aria-hidden="true">
+                        <polygon class="seg" points="23.5,0 27.2,0 23.3,14.7 19.6,14.7"/>
+                        <polygon class="seg" points="7.6,0.6 3.8,14.7 7.5,14.7 10.3,4.3"/>
+                        <polygon class="seg" points="8.8,13.2 19.1,13.2 18.1,17.1 7.8,17.1"/>
+                        <polygon class="seg" points="19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6"/>
+                      </svg>
+                    </div>
+                    <!-- digit 5: top, top-left, middle, bottom-right, bottom -->
+                    <div class="digit" id="prog-d2" style="visibility:hidden">
+                      <svg viewBox="0 0 26 30" aria-hidden="true">
+                        <polygon class="seg" points="8.3,0 22.6,0 21.6,3.6 10.8,3.6"/>
+                        <polygon class="seg" points="7.6,0.6 3.8,14.7 7.5,14.7 10.3,4.3"/>
+                        <polygon class="seg" points="8.8,13.2 19.1,13.2 18.1,17.1 7.8,17.1"/>
+                        <polygon class="seg" points="19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6"/>
+                        <polygon class="seg" points="0.5,30 18.7,30 15.8,26.1 5.5,26.1"/>
+                      </svg>
+                    </div>
                   </div>
                 </div>
 
                 <!-- VERB 16 -->
-                <div class="two-digit verb">
+                <div class="two-digit verb" id="verb-display">
                   <div class="pill">VERB</div>
                   <div class="digits">
                     <div class="digit">
@@ -472,7 +663,7 @@
                 </div>
 
                 <!-- NOUN 36 -->
-                <div class="two-digit noun">
+                <div class="two-digit noun" id="noun-display">
                   <div class="pill">NOUN</div>
                   <div class="digits">
                     <div class="digit">
@@ -585,9 +776,121 @@
 
   </div>
 
+  <!-- ============================================================
+       Numeric pad sheet — shown when VERB key is pressed
+       iOS HIG: backdrop + bottom sheet, 3-col numpad, 2-digit cap
+       ============================================================ -->
+  <div class="numpad-backdrop" id="numpad-backdrop" role="presentation"></div>
+
+  <div class="numpad-sheet" id="numpad-sheet"
+       role="dialog" aria-modal="true" aria-label="Enter VERB code">
+
+    <div class="numpad-handle" aria-hidden="true"></div>
+
+    <div class="numpad-bar">
+      <span class="numpad-title">VERB</span>
+      <button class="numpad-done" id="numpad-done" type="button">Done</button>
+    </div>
+
+    <!-- Live preview of the two digits being entered -->
+    <div class="numpad-preview" aria-live="polite" aria-label="Current entry">
+      <div class="numpad-pip" id="numpad-pip-0">–</div>
+      <div class="numpad-pip" id="numpad-pip-1">–</div>
+    </div>
+
+    <!-- 4 rows × 3 cols: 1-9, phantom + 0 + backspace -->
+    <div class="numpad-grid">
+      <button class="nk" type="button" data-nk="1"><span class="nk-digit">1</span></button>
+      <button class="nk" type="button" data-nk="2"><span class="nk-digit">2</span></button>
+      <button class="nk" type="button" data-nk="3"><span class="nk-digit">3</span></button>
+      <button class="nk" type="button" data-nk="4"><span class="nk-digit">4</span></button>
+      <button class="nk" type="button" data-nk="5"><span class="nk-digit">5</span></button>
+      <button class="nk" type="button" data-nk="6"><span class="nk-digit">6</span></button>
+      <button class="nk" type="button" data-nk="7"><span class="nk-digit">7</span></button>
+      <button class="nk" type="button" data-nk="8"><span class="nk-digit">8</span></button>
+      <button class="nk" type="button" data-nk="9"><span class="nk-digit">9</span></button>
+      <button class="nk phantom" type="button" tabindex="-1" aria-hidden="true"></button>
+      <button class="nk" type="button" data-nk="0"><span class="nk-digit">0</span></button>
+      <button class="nk backspace" type="button" id="numpad-back" aria-label="Delete">
+        <!-- iOS-style backspace chevron -->
+        <svg width="26" height="20" viewBox="0 0 26 20" fill="none" aria-hidden="true">
+          <path d="M9.5 2L2 10l7.5 8H24V2H9.5Z" fill="rgba(0,0,0,0.08)" stroke="none"/>
+          <path d="M9.5 2L2 10l7.5 8H24V2H9.5Z" stroke="#3c3c43" stroke-width="1.4" fill="none"/>
+          <path d="M14 7l6 6M20 7l-6 6" stroke="#3c3c43" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+
+  </div>
+
 <script>
   (() => {
-    /* Block all touch gestures that could pan or zoom the page */
+    /* ------------------------------------------------------------------ */
+    /* 7-segment polygon data for digits 0-9                               */
+    /* Each digit is an array of polygon `points` strings.                 */
+    /* Segments present in each digit:                                     */
+    /*   TR  = top-right    "23.5,0 27.2,0 23.3,14.7 19.6,14.7"           */
+    /*   TL  = top-left     "7.6,0.6 3.8,14.7 7.5,14.7 10.3,4.3"         */
+    /*   TOP = top bar      "8.3,0 22.6,0 21.6,3.6 10.8,3.6"              */
+    /*   MID = middle       "8.8,13.2 19.1,13.2 18.1,17.1 7.8,17.1"      */
+    /*   BR  = bottom-right "19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6"   */
+    /*   BL  = bottom-left  "3.6,15.6 0,29.3 4.6,25.7 7.3,15.6"          */
+    /*   BOT = bottom bar   "0.5,30 18.7,30 15.8,26.1 5.5,26.1"           */
+    /* ------------------------------------------------------------------ */
+    const SEG = {
+      TR:  "23.5,0 27.2,0 23.3,14.7 19.6,14.7",
+      TL:  "7.6,0.6 3.8,14.7 7.5,14.7 10.3,4.3",
+      TOP: "8.3,0 22.6,0 21.6,3.6 10.8,3.6",
+      MID: "8.8,13.2 19.1,13.2 18.1,17.1 7.8,17.1",
+      BR:  "19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6",
+      BL:  "3.6,15.6 0,29.3 4.6,25.7 7.3,15.6",
+      BOT: "0.5,30 18.7,30 15.8,26.1 5.5,26.1",
+    };
+
+    /* Segments used per digit 0-9 */
+    const DIGITS = {
+      0: [SEG.TOP, SEG.TR, SEG.TL, SEG.BR, SEG.BL, SEG.BOT],
+      1: [SEG.TR, SEG.BR],
+      2: [SEG.TOP, SEG.TR, SEG.MID, SEG.BL, SEG.BOT],
+      3: [SEG.TOP, SEG.TR, SEG.MID, SEG.BR, SEG.BOT],
+      4: [SEG.TL, SEG.TR, SEG.MID, SEG.BR],
+      5: [SEG.TOP, SEG.TL, SEG.MID, SEG.BR, SEG.BOT],
+      6: [SEG.TOP, SEG.TL, SEG.MID, SEG.BR, SEG.BL, SEG.BOT],
+      7: [SEG.TOP, SEG.TR, SEG.BR],
+      8: [SEG.TOP, SEG.TR, SEG.TL, SEG.MID, SEG.BR, SEG.BL, SEG.BOT],
+      9: [SEG.TOP, SEG.TR, SEG.TL, SEG.MID, SEG.BR, SEG.BOT],
+    };
+
+    /* Build an SVG element for a given digit (0-9) */
+    const makeSVG = (d) => {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 26 30");
+      svg.setAttribute("aria-hidden", "true");
+      svg.style.cssText = "display:block;width:26px;height:30px;";
+      (DIGITS[d] || []).forEach(pts => {
+        const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        poly.setAttribute("class", "seg");
+        poly.setAttribute("points", pts);
+        svg.appendChild(poly);
+      });
+      return svg;
+    };
+
+    /* Write a two-digit value into a .digits container */
+    const renderTwoDigits = (container, twoDigitStr) => {
+      const cells = container.querySelectorAll('.digit');
+      const d0 = parseInt(twoDigitStr[0], 10);
+      const d1 = parseInt(twoDigitStr[1], 10);
+      [d0, d1].forEach((d, i) => {
+        cells[i].innerHTML = '';
+        cells[i].style.visibility = 'visible';
+        cells[i].appendChild(makeSVG(d));
+      });
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* Block all touch gestures that could pan or zoom the page            */
+    /* ------------------------------------------------------------------ */
     document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
     document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
     document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
@@ -595,7 +898,9 @@
     const PRESS_MS = 90;
     const keys = [...document.querySelectorAll('.k')];
 
-    /* ---------------- Sound ---------------- */
+    /* ------------------------------------------------------------------ */
+    /* Sound                                                                */
+    /* ------------------------------------------------------------------ */
     const VOICES = 3;
     const sounds = {};
     [4, 5, 7].forEach(n => {
@@ -624,6 +929,141 @@
     const press   = (k) => k.classList.add('is-pressed');
     const release = (k) => k.classList.remove('is-pressed');
 
+    /* ------------------------------------------------------------------ */
+    /* Display refs (matches map.md layout)                                 */
+    /* ------------------------------------------------------------------ */
+    const verbDisplay = document.getElementById('verb-display');   /* VERB field */
+    const nounDisplay = document.getElementById('noun-display');   /* NOUN field */
+    const progD1      = document.getElementById('prog-d1');        /* PROG digit 1 */
+    const progD2      = document.getElementById('prog-d2');        /* PROG digit 2 */
+    const verbDigits  = verbDisplay.querySelector('.digits');      /* digit cells inside VERB */
+
+    /* ------------------------------------------------------------------ */
+    /* Numeric pad sheet                                                    */
+    /* ------------------------------------------------------------------ */
+    const backdrop  = document.getElementById('numpad-backdrop');
+    const sheet     = document.getElementById('numpad-sheet');
+    const doneBtn   = document.getElementById('numpad-done');
+    const backBtn   = document.getElementById('numpad-back');
+    const pip0      = document.getElementById('numpad-pip-0');
+    const pip1      = document.getElementById('numpad-pip-1');
+
+    let numpadEntry  = [];   /* array of 0..2 digit characters */
+    let numpadTarget = null; /* 'verb' | 'noun' (future use) */
+
+    const updatePips = () => {
+      [pip0, pip1].forEach((pip, i) => {
+        if (numpadEntry[i] !== undefined) {
+          pip.textContent = numpadEntry[i];
+          pip.classList.add('has-digit');
+        } else {
+          pip.textContent = '–';
+          pip.classList.remove('has-digit');
+        }
+      });
+    };
+
+    const openNumpad = (target) => {
+      numpadTarget = target;
+      numpadEntry  = [];
+      updatePips();
+      backdrop.classList.add('is-open');
+      sheet.classList.add('is-open');
+      doneBtn.focus();
+    };
+
+    const closeNumpad = () => {
+      backdrop.classList.remove('is-open');
+      sheet.classList.remove('is-open');
+      numpadTarget = null;
+    };
+
+    const commitNumpad = () => {
+      /* Pad to 2 digits — leading zero if only one digit entered */
+      if (numpadEntry.length === 0) { closeNumpad(); return; }
+      const padded = numpadEntry.length === 1
+        ? '0' + numpadEntry[0]
+        : numpadEntry.join('');
+
+      if (numpadTarget === 'verb') {
+        renderTwoDigits(verbDigits, padded);
+      }
+      closeNumpad();
+    };
+
+    /* Numpad digit keys */
+    document.querySelectorAll('.nk[data-nk]').forEach(nk => {
+      const flash = () => {
+        nk.classList.add('is-pressed');
+        setTimeout(() => nk.classList.remove('is-pressed'), 80);
+      };
+
+      const tap = () => {
+        if (numpadEntry.length >= 2) return;   /* 2-digit cap */
+        numpadEntry.push(nk.dataset.nk);
+        updatePips();
+        flash();
+        /* Auto-commit once 2 digits entered */
+        if (numpadEntry.length === 2) {
+          setTimeout(commitNumpad, 180);
+        }
+      };
+
+      nk.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        nk.setPointerCapture?.(e.pointerId);
+      });
+      nk.addEventListener('pointerup', (e) => {
+        if (e.button !== 0) return;
+        tap();
+      });
+      nk.addEventListener('click', (e) => {
+        if (e.detail === 0) tap();
+      });
+    });
+
+    /* Backspace */
+    backBtn.addEventListener('pointerup', (e) => {
+      if (e.button !== 0) return;
+      numpadEntry.pop();
+      updatePips();
+    });
+    backBtn.addEventListener('click', (e) => {
+      if (e.detail === 0) { numpadEntry.pop(); updatePips(); }
+    });
+
+    /* Done button */
+    doneBtn.addEventListener('click', commitNumpad);
+
+    /* Tap backdrop to dismiss without committing */
+    backdrop.addEventListener('pointerup', closeNumpad);
+
+    /* ------------------------------------------------------------------ */
+    /* Main keypad (DSKY hardware keys)                                     */
+    /* ------------------------------------------------------------------ */
+    const handleKey = (key) => {
+      const name = key.dataset.key;
+
+      if (name === 'VERB') {
+        /* Open numeric pad targeting the VERB display field */
+        openNumpad('verb');
+
+      } else if (name === 'CLR') {
+        /* Clear VERB and NOUN digit displays */
+        verbDisplay.querySelectorAll('.digit svg').forEach(svg => {
+          svg.style.visibility = 'hidden';
+        });
+        nounDisplay.querySelectorAll('.digit svg').forEach(svg => {
+          svg.style.visibility = 'hidden';
+        });
+
+      } else if (name === 'STBY') {
+        /* Show "45" in the PROG display */
+        progD1.style.visibility = 'visible';
+        progD2.style.visibility = 'visible';
+      }
+    };
+
     const activate = (k) => {
       press(k);
       setTimeout(() => release(k), PRESS_MS);
@@ -639,6 +1079,7 @@
       k.addEventListener('pointerup', (e) => {
         if (e.button !== 0) return;
         activate(k);
+        handleKey(k);
       });
       k.addEventListener('pointercancel', () => release(k));
       k.addEventListener('pointerleave', (e) => {
@@ -648,6 +1089,7 @@
         if (e.detail === 0) {
           activate(k);
           playFor(k);
+          handleKey(k);
         }
       });
     });
