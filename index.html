@@ -350,6 +350,14 @@
     --p1: rgba(16, 16, 21, 0.6);
     --p2: rgba(3, 3, 6, 0.6);
   }
+
+  /* ENTR key in LOAD mode — blue tint to signal load state */
+  .k.entr.is-load {
+    --c1: #0a1528;
+    --c2: #050a14;
+    --p1: rgba(10, 21, 40, 0.7);
+    --p2: rgba(5, 10, 20, 0.7);
+  }
   .k.entr, .k.rset {
     --c1: #1e0a0a;
     --c2: rgba(30, 10, 10, 0.6);
@@ -849,6 +857,11 @@
 
   </div>
 
+  <!-- Hidden file input for LOAD -->
+  <input type="file" id="load-input" accept=".json,application/json"
+         style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;"
+         aria-hidden="true" tabindex="-1" />
+
   <!-- ============================================================
        Numeric pad sheet — shown when VERB key is pressed
        iOS HIG: backdrop + bottom sheet, 3-col numpad, 2-digit cap
@@ -900,7 +913,10 @@
            autocorrect="off" autocapitalize="off" spellcheck="false"
            maxlength="2" aria-hidden="true" tabindex="-1" />
 
-  </div> — shown when RSET is pressed
+  </div>
+
+  <!-- ============================================================
+       Alpha sheet — shown when RSET is pressed
        iOS HIG: backdrop shared with numpad, bottom sheet,
        native OS keyboard via hidden input, 5-char max, → R1 field
        ============================================================ -->
@@ -1096,6 +1112,70 @@
     const r1Cells     = r1Row.querySelectorAll('.reg-cell:not(.sign)'); /* 5 data cells */
 
     /* ------------------------------------------------------------------ */
+    /* Display state — single source of truth for all field values         */
+    /* Updated by every commit function; read by saveEntry()               */
+    /* ------------------------------------------------------------------ */
+    const displayState = { prog: '', verb: '', noun: '', r1: '', r2: '', r3: '' };
+
+    /* ------------------------------------------------------------------ */
+    /* ENTR ↔ LOAD toggle                                                   */
+    /* ENTR  — when any field has content: save → clear → switch to LOAD   */
+    /* LOAD  — when all fields empty: open file picker → populate fields   */
+    /* CLR   — always just clears, no toggle                                */
+    /* ------------------------------------------------------------------ */
+    const entrBtn   = document.querySelector('.k.entr');
+    const entrLabel = entrBtn.querySelector('.key-label');
+    const loadInput = document.getElementById('load-input');
+
+    const isDisplayEmpty = () =>
+      Object.values(displayState).every(v => v === '');
+
+    const syncEntrBtn = () => {
+      if (isDisplayEmpty()) {
+        entrLabel.textContent = 'LOAD';
+        entrBtn.setAttribute('aria-label', 'LOAD');
+        entrBtn.classList.add('is-load');
+      } else {
+        entrLabel.textContent = 'ENTR';
+        entrBtn.setAttribute('aria-label', 'ENTR');
+        entrBtn.classList.remove('is-load');
+      }
+    };
+
+    /* Parse a dsky.json file and render the most recent entry */
+    const loadEntry = (file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const log   = JSON.parse(e.target.result);
+          const entry = Array.isArray(log.log) && log.log.length
+            ? log.log[log.log.length - 1]   /* most recent entry */
+            : log;                           /* bare single-entry file */
+
+          /* Clear display first */
+          clearAllFields();
+
+          /* Render each field that has a value */
+          if (entry.prog) { renderTwoDigits(progDigits, entry.prog); displayState.prog = entry.prog; }
+          if (entry.verb) { renderTwoDigits(verbDigits, entry.verb); displayState.verb = entry.verb; }
+          if (entry.noun) { renderTwoDigits(nounDigits, entry.noun); displayState.noun = entry.noun; }
+          if (entry.r1)   { renderR1(entry.r1);                      displayState.r1   = entry.r1;   }
+
+          syncEntrBtn();
+        } catch (_) { /* silently ignore malformed files */ }
+      };
+      reader.readAsText(file);
+    };
+
+    loadInput.addEventListener('change', (e) => {
+      if (e.target.files[0]) loadEntry(e.target.files[0]);
+      loadInput.value = '';   /* reset so same file can be reloaded */
+    });
+
+    /* Set initial ENTR/LOAD state on page load (all fields empty = LOAD) */
+    syncEntrBtn();
+
+    /* ------------------------------------------------------------------ */
     /* R1 renderer — writes up to 5 glyphs as 7-segment SVGs               */
     /* reg-cells are 26×30px, matching .digit cells in VERB/NOUN/PROG      */
     /* ------------------------------------------------------------------ */
@@ -1117,6 +1197,7 @@
         cell.innerHTML = '';
         cell.style.visibility = 'hidden';
       });
+      displayState.r1 = '';
     };
 
     /* ------------------------------------------------------------------ */
@@ -1174,11 +1255,15 @@
 
       if (numpadTarget === 'verb') {
         renderTwoDigits(verbDigits, padded);
+        displayState.verb = padded;
       } else if (numpadTarget === 'noun') {
         renderTwoDigits(nounDigits, padded);
+        displayState.noun = padded;
       } else if (numpadTarget === 'prog') {
         renderTwoDigits(progDigits, padded);
+        displayState.prog = padded;
       }
+      syncEntrBtn();
       closeNumpad();
     };
 
@@ -1300,7 +1385,11 @@
 
     const commitAlpha = () => {
       const val = alphaInput.value.trim();
-      if (val.length > 0) renderR1(val);
+      if (val.length > 0) {
+        renderR1(val);
+        displayState.r1 = val.toUpperCase().slice(0, 5);
+        syncEntrBtn();
+      }
       closeAlpha();
     };
 
@@ -1326,6 +1415,79 @@
     });
 
     /* ------------------------------------------------------------------ */
+    /* ENTR — save to dsky.json + clear all fields                         */
+    /* ------------------------------------------------------------------ */
+    const clearAllFields = () => {
+      /* Visual clear */
+      [verbDisplay, nounDisplay].forEach(display => {
+        display.querySelectorAll('.digit svg').forEach(svg => {
+          svg.style.visibility = 'hidden';
+        });
+      });
+      progDigits.querySelectorAll('.digit').forEach(cell => {
+        cell.innerHTML = '';
+        cell.style.visibility = 'hidden';
+      });
+      clearR1();   /* also resets displayState.r1 */
+      /* State clear */
+      displayState.verb = '';
+      displayState.noun = '';
+      displayState.prog = '';
+      /* r2/r3 always '' until input is implemented */
+      syncEntrBtn();
+    };
+
+    const saveEntry = () => {
+      const entry = {
+        timestamp: new Date().toISOString(),
+        prog:  displayState.prog,
+        verb:  displayState.verb,
+        noun:  displayState.noun,
+        r1:    displayState.r1,
+        r2:    displayState.r2,
+        r3:    displayState.r3,
+        display: [
+          displayState.prog,
+          displayState.verb,
+          displayState.noun,
+          displayState.r1,
+          displayState.r2,
+          displayState.r3,
+        ].filter(v => v !== '').join(' '),
+      };
+
+      /* Append to localStorage log */
+      let log = { log: [] };
+      try {
+        const stored = localStorage.getItem('dsky_log');
+        if (stored) log = JSON.parse(stored);
+      } catch (_) {}
+      log.log.push(entry);
+      try {
+        localStorage.setItem('dsky_log', JSON.stringify(log));
+      } catch (_) {}
+
+      /* Download as dsky.json — blob is always available locally,
+         so we clear immediately after triggering the download */
+      try {
+        const blob = new Blob(
+          [JSON.stringify(log, null, 2)],
+          { type: 'application/json' }
+        );
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.href     = url;
+        a.download = 'dsky.json';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+      } catch (_) {}
+
+      /* Clear fields and switch ENTR → LOAD */
+      clearAllFields();
+    };
+
+    /* ------------------------------------------------------------------ */
     /* Main keypad (DSKY hardware keys)                                     */
     /* ------------------------------------------------------------------ */
     const handleKey = (key) => {
@@ -1340,7 +1502,7 @@
         openNumpad('noun');
 
       } else if (name === 'CLR') {
-        /* Clear VERB, NOUN, and PROG digit displays */
+        /* CLR always clears all fields — no toggle */
         [verbDisplay, nounDisplay].forEach(display => {
           display.querySelectorAll('.digit svg').forEach(svg => {
             svg.style.visibility = 'hidden';
@@ -1351,6 +1513,10 @@
           cell.style.visibility = 'hidden';
         });
         clearR1();
+        displayState.verb = '';
+        displayState.noun = '';
+        displayState.prog = '';
+        syncEntrBtn();   /* update ENTR/LOAD state after clear */
 
       } else if (name === 'STBY') {
         /* Open numeric pad targeting the PROG display field */
@@ -1359,6 +1525,14 @@
       } else if (name === 'RSET') {
         /* Open alpha sheet targeting the R1 register field */
         openAlpha();
+
+      } else if (name === 'ENTR') {
+        /* Toggle: ENTR mode saves + clears; LOAD mode opens file picker */
+        if (entrBtn.classList.contains('is-load')) {
+          loadInput.click();
+        } else {
+          saveEntry();
+        }
       }
     };
 
