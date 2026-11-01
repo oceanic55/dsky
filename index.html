@@ -60,6 +60,40 @@
     height: 100%;
   }
 
+  /* ---------------- Panel wrapper (holds panel + corner screws) ---------- */
+  .panel-wrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* allow absolutely-positioned screws to extend outside panel bounds */
+    overflow: visible;
+  }
+
+  /* Top screws — on the grey background, flanking the display at its top level */
+  .panel-screw {
+    position: absolute;
+    width: calc(22px * var(--s));
+    height: calc(22px * var(--s));
+    border-radius: 50%;
+    overflow: hidden;
+    pointer-events: none;
+    box-shadow: 0 1.1px 2.2px rgba(0, 0, 0, 0.35);
+    /* Vertically: inside the panel's top padding, level with display top */
+    top: calc(21px * var(--s));
+    z-index: 10;
+  }
+  .panel-screw img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform-origin: 50% 50%;
+  }
+  /* Horizontally: match the keypad screw positions (panel padding = 40px each side) */
+  .panel-screw.tl { left:  calc(40px * var(--s)); }
+  .panel-screw.tr { right: calc(40px * var(--s)); }
+
   /* ---------------- Panel bezel ---------------- */
   .panel {
     display: flex;
@@ -87,6 +121,10 @@
     user-select: none;
     text-align: center;
     white-space: nowrap;
+    /* Prevent caption from stretching panel-wrap wider than the panel content */
+    max-width: calc(274px * var(--s));
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* ---------------- Scaled stage (uniform, like the app) ---------------- */
@@ -436,7 +474,36 @@
       0 0 0 2px rgba(53, 211, 154, 0.55);
   }
 
-  /* ================= Numeric pad sheet (iOS HIG) ================= */
+  /* RSET key active-mode (PROG=02) — red tint signals constant-edit mode */
+  .k.rset.is-active {
+    --c1: #5a0a0a;
+    --c2: #3a0505;
+    --p1: rgba(90, 10, 10, 0.8);
+    --p2: rgba(58, 5, 5, 0.8);
+  }
+
+  /* Copy icon button on R2 row */
+  .r2-copy {
+    display: none;
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    line-height: 1;
+  }
+  .r2-copy svg { display: block; }
+  .r2-copy:active { opacity: 0.5; }
+  /* Show only when PROG=02 is active */
+  .r2-copy-visible { display: block; }
+
+  /* R2 row needs relative positioning for the copy button */
+  .reg-row.r2 { position: absolute; }
 
   /* Full-screen backdrop — blurs content behind, dims slightly */
   .numpad-backdrop {
@@ -730,11 +797,106 @@
     letter-spacing: 0;
     font-weight: 300;
   }
+  /* ================= Entry picker sheet (PROG 03 + RSET) ================= */
+
+  .picker-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 101;
+    background: #d1d1d6;
+    border-radius: 13px 13px 0 0;
+    box-shadow: 0 -2px 20px rgba(0,0,0,0.22);
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+    transform: translateY(100%);
+    transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+    touch-action: none;
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .picker-sheet.is-open { transform: translateY(0); }
+
+  .picker-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px 8px;
+    flex-shrink: 0;
+  }
+  .picker-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #3c3c43;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .picker-cancel {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: none;
+    font-size: 17px;
+    font-weight: 400;
+    color: #007aff;
+    cursor: pointer;
+    padding: 4px 0 4px 16px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .picker-cancel:active { opacity: 0.5; }
+
+  /* Scrollable entry list */
+  .picker-list {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+    padding: 0 12px 12px;
+  }
+
+  .picker-item {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    width: 100%;
+    background: #ffffff;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    text-align: left;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: background 80ms;
+  }
+  .picker-item:active { background: #e5e5ea; }
+
+  .picker-item-r1 {
+    font-size: 17px;
+    font-weight: 500;
+    color: #1c1c1e;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+  }
+  .picker-item-meta {
+    font-size: 12px;
+    color: #8e8e93;
+    font-variant-numeric: tabular-nums;
+  }
 </style>
 </head>
 <body>
 
   <div class="page">
+
+    <div class="panel-wrap">
+      <span class="panel-screw tl" aria-hidden="true"><img src="img/screw.png" alt="" style="transform:rotate(-28deg) scale(1.14)"></span>
+      <span class="panel-screw tr" aria-hidden="true"><img src="img/screw.png" alt="" style="transform:rotate(74deg) scale(1.14)"></span>
 
     <main class="panel">
       <div class="viewport">
@@ -802,6 +964,12 @@
                     <span class="reg-cell"></span><span class="reg-cell"></span>
                     <span class="reg-cell"></span>
                   </div>
+                  <button class="r2-copy" id="r2-copy-btn" type="button" aria-label="Copy full constant">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <rect x="4" y="4" width="8" height="8" rx="1.2" stroke="#35d39a" stroke-width="1.2" fill="none"/>
+                      <path d="M2 10V2h8" stroke="#35d39a" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+                    </svg>
+                  </button>
                 </div>
 
                 <div class="reg-row r3" id="r3-row">
@@ -863,8 +1031,9 @@
           </div>
         </div>
       </div>
-      <span class="caption">Display panel · PROG VERB NOUN R1 R2 R3 · 3 × 2 function keys · 4 corner screws</span>
+      <span class="caption">PROG VN R1 R2 R3 · N01 21:07</span>
     </main>
+    </div><!-- /.panel-wrap -->
 
   </div>
 
@@ -944,8 +1113,8 @@
     <input class="alpha-input" id="alpha-input"
            type="text" inputmode="text" autocomplete="off"
            autocorrect="off" autocapitalize="characters"
-           spellcheck="false" maxlength="5"
-           placeholder="Enter up to 5 characters"
+           spellcheck="false" maxlength="10"
+           placeholder="Enter up to 10 characters"
            aria-label="R1 entry" />
 
     <!-- Live preview: 5 pip tiles -->
@@ -955,6 +1124,26 @@
       <div class="alpha-pip" id="alpha-pip-2">–</div>
       <div class="alpha-pip" id="alpha-pip-3">–</div>
       <div class="alpha-pip" id="alpha-pip-4">–</div>
+    </div>
+
+  </div>
+
+  <!-- ============================================================
+       Entry picker sheet — shown when PROG=03 + RSET pressed
+       Lists all R1 values from loaded JSON log for selection
+       ============================================================ -->
+  <div class="picker-sheet" id="picker-sheet"
+       role="dialog" aria-modal="true" aria-label="Select entry">
+
+    <div class="numpad-handle" aria-hidden="true"></div>
+
+    <div class="picker-bar">
+      <span class="picker-title">SELECT ENTRY</span>
+      <button class="picker-cancel" id="picker-cancel" type="button">Cancel</button>
+    </div>
+
+    <div class="picker-list" id="picker-list">
+      <!-- Populated dynamically from loaded JSON log -->
     </div>
 
   </div>
@@ -1127,112 +1316,64 @@
     const r3Cells     = r3Row.querySelectorAll('.reg-cell:not(.sign)');
     const compRedy    = document.getElementById('comp-redy');     /* COMP REDY panel */
 
+    /* Backdrop and sheet refs — declared early, used by numpad, alpha, and picker */
+    const backdrop     = document.getElementById('numpad-backdrop');
+    const sheet        = document.getElementById('numpad-sheet');
+    const pickerSheet  = document.getElementById('picker-sheet');
+    const pickerList   = document.getElementById('picker-list');
+    const pickerCancel = document.getElementById('picker-cancel');
+
     /* ------------------------------------------------------------------ */
     /* Display state — single source of truth for all field values         */
     /* Updated by every commit function; read by saveEntry()               */
     /* ------------------------------------------------------------------ */
     const displayState = { prog: '', verb: '', noun: '', r1: '', r2: '', r3: '' };
 
-    /* ------------------------------------------------------------------ */
-    /* ENTR ↔ LOAD toggle                                                   */
-    /* ENTR  — when any field has content: save → clear → switch to LOAD   */
-    /* LOAD  — when all fields empty: open file picker → populate fields   */
-    /* CLR   — always just clears, no toggle                                */
-    /* ------------------------------------------------------------------ */
-    const entrBtn   = document.querySelector('.k.entr');
-    const entrLabel = entrBtn.querySelector('.key-label');
-    const loadInput = document.getElementById('load-input');
+    /* Loaded JSON log — null until a file is successfully loaded */
+    let loadedLog = null;
 
-    const isDisplayEmpty = () =>
-      Object.values(displayState).every(v => v === '');
+    /* Entry slated for edit/removal when CLR is pressed with a file loaded.
+       null = normal save mode; non-null = update-in-place or delete mode */
+    let slatedEntry = null;
 
-    const syncEntrBtn = () => {
-      if (isDisplayEmpty()) {
-        entrLabel.textContent = 'LOAD';
-        entrBtn.setAttribute('aria-label', 'LOAD');
-        entrBtn.classList.add('is-load');
-      } else {
-        entrLabel.textContent = 'ENTR';
-        entrBtn.setAttribute('aria-label', 'ENTR');
-        entrBtn.classList.remove('is-load');
-      }
-    };
-
-    /* Parse a dsky.json file and render the most recent entry */
-    const loadEntry = (file) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const log   = JSON.parse(e.target.result);
-          const entry = Array.isArray(log.log) && log.log.length
-            ? log.log[log.log.length - 1]   /* most recent entry */
-            : log;                           /* bare single-entry file */
-
-          /* Clear display first */
-          clearAllFields();
-
-          /* Render each field that has a value */
-          if (entry.prog) { renderTwoDigits(progDigits, entry.prog); displayState.prog = entry.prog; }
-          if (entry.verb) { renderTwoDigits(verbDigits, entry.verb); displayState.verb = entry.verb; }
-          if (entry.noun) { renderTwoDigits(nounDigits, entry.noun); displayState.noun = entry.noun; }
-          if (entry.r1)   { renderR1(entry.r1);                      displayState.r1   = entry.r1;   }
-
-          syncEntrBtn();
-          syncCompRedy();
-        } catch (_) { /* silently ignore malformed files */ }
-      };
-      reader.readAsText(file);
-    };
-
-    loadInput.addEventListener('change', (e) => {
-      if (e.target.files[0]) loadEntry(e.target.files[0]);
-      loadInput.value = '';   /* reset so same file can be reloaded */
-    });
-
-    /* Set initial ENTR/LOAD state on page load (all fields empty = LOAD) */
-    syncEntrBtn();
+    /* 12-digit constant (779900009999 by default) used for R2 calculation */
+    let constant = "779900009999";
 
     /* ------------------------------------------------------------------ */
-    /* COMP REDY indicator                                                  */
-    /* Lights green when PROG + VERB + NOUN + at least one Rx are all set  */
+    /* COMP REDY — ON when file resident, OFF when no file or entry picked */
     /* ------------------------------------------------------------------ */
     const syncCompRedy = () => {
-      const rxFilled = displayState.r1 !== '' ||
-                       displayState.r2 !== '' ||
-                       displayState.r3 !== '';
-      const ready = displayState.prog !== '' &&
-                    displayState.verb !== '' &&
-                    displayState.noun !== '' &&
-                    rxFilled;
-      compRedy.classList.toggle('is-ready', ready);
+      compRedy.classList.toggle('is-ready', loadedLog !== null);
     };
 
     /* ------------------------------------------------------------------ */
-    /* R1 renderer — writes up to 5 glyphs as 7-segment SVGs               */
-    /* reg-cells are 26×30px, matching .digit cells in VERB/NOUN/PROG      */
+    /* Rx renderers and clear helpers                                       */
     /* ------------------------------------------------------------------ */
     const renderR1 = (str) => {
-      const upper = str.toUpperCase().slice(0, 5);
+      /* Store full string (up to 10 chars) in displayState */
+      const fullStr = str.toUpperCase().slice(0, 10);
+      /* Display only first 5 characters */
+      const displayStr = fullStr.slice(0, 5);
+      
       r1Cells.forEach((cell, i) => {
         cell.innerHTML = '';
-        if (upper[i] !== undefined) {
+        if (displayStr[i] !== undefined) {
           cell.style.visibility = 'visible';
-          cell.appendChild(makeSVG(upper[i]));   /* 26×30 default — same as VERB/NOUN */
+          cell.appendChild(makeSVG(displayStr[i]));
         } else {
           cell.style.visibility = 'hidden';
         }
       });
+      displayState.r1 = fullStr;
     };
 
     const clearR1 = () => {
-      r1Cells.forEach(cell => {
-        cell.innerHTML = '';
-        cell.style.visibility = 'hidden';
-      });
+      r1Cells.forEach(cell => { cell.innerHTML = ''; cell.style.visibility = 'hidden'; });
       displayState.r1 = '';
+      /* Clear R2 when R1 is cleared */
+      renderR2();
     };
 
-    /* Generic Rx renderer used by RSET routing */
     const renderRx = (cells, str, stateKey) => {
       const upper = str.toUpperCase().slice(0, 5);
       cells.forEach((cell, i) => {
@@ -1252,11 +1393,193 @@
       displayState[stateKey] = '';
     };
 
+    /* Render R2 based on R1 value and constant */
+    const renderR2 = () => {
+      const r1Val = displayState.r1;
+      let derived = '';
+      
+      if (r1Val.length >= 2) {
+        /* First 2 digits from R1 */
+        derived += r1Val.slice(0, 2);
+      } else if (r1Val.length === 1) {
+        /* If only 1 digit, pad with 0 */
+        derived += r1Val + '0';
+      } else {
+        /* No R1 input - show blanks */
+        derived += '  ';
+      }
+      
+      /* Cell 3: blank (space) */
+      derived += ' ';
+      
+      /* Last 2 digits from constant */
+      if (constant && constant.length >= 2) {
+        derived += constant.slice(0, 2);
+      } else {
+        derived += '00';
+      }
+      
+      /* Ensure we have exactly 5 characters */
+      const padded = derived.padEnd(5, ' ');
+      
+      r2Cells.forEach((cell, i) => {
+        cell.innerHTML = '';
+        const char = padded[i];
+        if (char !== undefined && char !== ' ') {
+          cell.style.visibility = 'visible';
+          cell.appendChild(makeSVG(char));
+        } else {
+          cell.style.visibility = 'hidden';
+        }
+      });
+      displayState.r2 = derived;
+      /* Update copy button visibility based on PROG */
+      syncRsetBtn();
+    };
+
+    /* Sync RSET button state (red when PROG=02) */
+    const syncRsetBtn = () => {
+      const rsetBtn = document.querySelector('.k.rset');
+      const copyBtn = document.getElementById('r2-copy-btn');
+      const isProg02 = displayState.prog === '02';
+      
+      rsetBtn.classList.toggle('is-active', isProg02);
+      
+      /* Show copy button only when PROG=02 */
+      copyBtn.classList.toggle('r2-copy-visible', isProg02);
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* ENTR ↔ LOAD toggle                                                   */
+    /* ENTR  — when any field has content: save → clear → switch to LOAD   */
+    /* LOAD  — when all fields empty: open file picker → populate fields   */
+    /* CLR   — always just clears, no toggle                                */
+    /* ------------------------------------------------------------------ */
+    const entrBtn   = document.querySelector('.k.entr');
+    const entrLabel = entrBtn.querySelector('.key-label');
+    const loadInput = document.getElementById('load-input');
+
+    const isDisplayEmpty = () =>
+      Object.values(displayState).every(v => v === '');
+
+    const syncEntrBtn = () => {
+      /* Stay in ENTR/SAVE mode if there is a pending slated entry,
+         even when the display is blank (empty = delete on save) */
+      if (isDisplayEmpty() && slatedEntry === null) {
+        entrLabel.textContent = 'LOAD';
+        entrBtn.setAttribute('aria-label', 'LOAD');
+        entrBtn.classList.add('is-load');
+      } else {
+        entrLabel.textContent = 'ENTR';
+        entrBtn.setAttribute('aria-label', 'ENTR');
+        entrBtn.classList.remove('is-load');
+      }
+    };
+
+    const clearAllFields = () => {
+      [verbDisplay, nounDisplay].forEach(display => {
+        display.querySelectorAll('.digit svg').forEach(svg => { svg.style.visibility = 'hidden'; });
+      });
+      progDigits.querySelectorAll('.digit').forEach(cell => {
+        cell.innerHTML = '';
+        cell.style.visibility = 'hidden';
+      });
+      clearR1();
+      displayState.verb = '';
+      displayState.noun = '';
+      displayState.prog = '';
+      /* Clear R2 and R3 */
+      renderR2();
+      clearRx(r3Cells, 'r3');
+      syncEntrBtn();
+      syncRsetBtn();  /* Update RSET button state */
+      /* clearAllFields does NOT affect loadedLog or COMP REDY */
+    };
+
+    /* Parse a dsky.json file — store in memory, light COMP REDY, show nothing */
+    const loadEntry = (file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          /* Accept both {log:[...]} and a bare single-entry object */
+          loadedLog = Array.isArray(parsed.log) ? parsed : { log: [parsed] };
+          /* Load constant if present in file */
+          if (parsed.constant && parsed.constant.length === 12) {
+            constant = parsed.constant;
+          }
+          clearAllFields();   /* ensure display is blank */
+          syncCompRedy();     /* light up COMP REDY */
+          syncEntrBtn();
+        } catch (_) { /* silently ignore malformed files */ }
+      };
+      reader.readAsText(file);
+    };
+
+    loadInput.addEventListener('change', (e) => {
+      if (e.target.files[0]) loadEntry(e.target.files[0]);
+      loadInput.value = '';   /* reset so same file can be reloaded */
+    });
+
+    /* Set initial ENTR/LOAD state on page load (all fields empty = LOAD) */
+    syncEntrBtn();
+    syncRsetBtn();  /* Set initial RSET button state */
+
+    /* ------------------------------------------------------------------ */
+    /* Entry picker (PROG=03 + RSET)                                        */
+    /* ------------------------------------------------------------------ */
+    const closePicker = () => {
+      backdrop.classList.remove('is-open');
+      pickerSheet.classList.remove('is-open');
+    };
+
+    const selectEntry = (entry) => {
+      clearAllFields();
+      if (entry.prog) { renderTwoDigits(progDigits, entry.prog); displayState.prog = entry.prog; }
+      if (entry.verb) { renderTwoDigits(verbDigits, entry.verb); displayState.verb = entry.verb; }
+      if (entry.noun) { renderTwoDigits(nounDigits, entry.noun); displayState.noun = entry.noun; }
+      if (entry.r1)   { renderR1(entry.r1); renderR2(); }
+      slatedEntry = null;
+      loadedLog = null;
+      syncCompRedy();
+      syncEntrBtn();
+      syncRsetBtn();  /* Update RSET button state */
+      closePicker();
+    };
+
+    const openPicker = () => {
+      if (!loadedLog || !loadedLog.log.length) return;
+      pickerList.innerHTML = '';
+      loadedLog.log.forEach((entry) => {
+        const r1Label = entry.r1 ? entry.r1.toUpperCase() : 'EMPTY';
+        const meta    = [entry.prog, entry.verb, entry.noun].filter(v => v).join(' · ') || '—';
+        const ts      = entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '';
+        const btn = document.createElement('button');
+        btn.className = 'picker-item';
+        btn.type = 'button';
+        btn.setAttribute('aria-label', r1Label);
+        btn.innerHTML = `
+          <span class="picker-item-r1">${r1Label}</span>
+          <span class="picker-item-meta">${meta}${ts ? '  ·  ' + ts : ''}</span>
+        `;
+        btn.addEventListener('pointerup', () => selectEntry(entry));
+        btn.addEventListener('click',     () => selectEntry(entry));
+        pickerList.appendChild(btn);
+      });
+      backdrop.classList.add('is-open');
+      pickerSheet.classList.add('is-open');
+    };
+
+    pickerCancel.addEventListener('click', closePicker);
+
+    /* Backdrop tap closes picker (same guard pattern as numpad/alpha) */
+    backdrop.addEventListener('pointerup', () => {
+      if (pickerSheet.classList.contains('is-open')) closePicker();
+    });
+
     /* ------------------------------------------------------------------ */
     /* Numeric pad sheet                                                    */
     /* ------------------------------------------------------------------ */
-    const backdrop     = document.getElementById('numpad-backdrop');
-    const sheet        = document.getElementById('numpad-sheet');
     const doneBtn      = document.getElementById('numpad-done');
     const backBtn      = document.getElementById('numpad-back');
     const numpadInput  = document.getElementById('numpad-input');
@@ -1310,6 +1633,7 @@
         displayState.prog = padded;
         syncEntrBtn();
         syncCompRedy();
+        syncRsetBtn();  /* Update RSET button state */
         closeNumpad();
         return;
       }
@@ -1465,7 +1789,13 @@
       const val = alphaInput.value.trim();
       if (val.length > 0) {
         const rx = getRxTarget();
-        renderRx(rx.cells, val, rx.key);
+        if (rx.key === 'r1') {
+          renderR1(val);
+          /* After R1 is set, auto-derive R2 */
+          renderR2();
+        } else {
+          renderRx(rx.cells, val, rx.key);
+        }
         syncEntrBtn();
         syncCompRedy();
       }
@@ -1474,9 +1804,9 @@
 
     /* Keep pips in sync with every keystroke */
     alphaInput.addEventListener('input', () => {
-      /* Enforce 5-char cap (maxlength alone isn't reliable on all iOS versions) */
-      if (alphaInput.value.length > 5) {
-        alphaInput.value = alphaInput.value.slice(0, 5);
+      /* Enforce 10-char cap (maxlength alone isn't reliable on all iOS versions) */
+      if (alphaInput.value.length > 10) {
+        alphaInput.value = alphaInput.value.slice(0, 10);
       }
       updateAlphaPips(alphaInput.value);
     });
@@ -1488,83 +1818,201 @@
 
     alphaDone.addEventListener('click', commitAlpha);
 
+    /* ------------------------------------------------------------------ */
+    /* Constant editor (PROG=02 + RSET)                                    */
+    /* ------------------------------------------------------------------ */
+    const openConstantEditor = () => {
+      /* Create a modal for constant editing */
+      const modal = document.createElement('div');
+      modal.className = 'numpad-sheet';
+      modal.style.position = 'fixed';
+      modal.style.left = '0';
+      modal.style.right = '0';
+      modal.style.bottom = '0';
+      modal.style.zIndex = '102';  /* Higher than other sheets */
+      modal.style.background = '#d1d1d6';
+      modal.style.borderRadius = '13px 13px 0 0';
+      modal.style.boxShadow = '0 -2px 20px rgba(0,0,0,0.22)';
+      modal.style.padding = '0 0 env(safe-area-inset-bottom, 0px)';
+      modal.style.transform = 'translateY(100%)';
+      modal.style.transition = 'transform 320ms cubic-bezier(0.32, 0.72, 0, 1)';
+      modal.style.userSelect = 'none';
+      modal.style.touchAction = 'none';
+
+      modal.innerHTML = `
+        <div class="numpad-handle" aria-hidden="true"></div>
+        <div class="numpad-bar">
+          <span class="numpad-title">CONSTANT</span>
+          <button class="numpad-done" id="constant-done" type="button">Done</button>
+        </div>
+        <input class="alpha-input" id="constant-input"
+               type="text" inputmode="numeric" autocomplete="off"
+               autocorrect="off" autocapitalize="none"
+               spellcheck="false" maxlength="12"
+               placeholder="Enter 12 digits"
+               aria-label="Edit constant"
+               value="${constant}" />
+      `;
+
+      document.body.appendChild(modal);
+      backdrop.classList.add('is-open');
+
+      /* Show modal with animation */
+      setTimeout(() => {
+        modal.classList.add('is-open');
+        modal.style.transform = 'translateY(0)';
+      }, 10);
+
+      const input = document.getElementById('constant-input');
+      const doneBtn = document.getElementById('constant-done');
+
+      /* Focus and select all text */
+      setTimeout(() => {
+        input.focus();
+        input.select();
+      }, 50);
+
+      const saveConstant = () => {
+        const newValue = input.value.trim();
+        if (newValue.length === 12 && /^\d+$/.test(newValue)) {
+          constant = newValue;
+          renderR2();  /* Update R2 display with new constant */
+        }
+        closeConstantEditor();
+      };
+
+      const closeConstantEditor = () => {
+        backdrop.classList.remove('is-open');
+        modal.style.transform = 'translateY(100%)';
+        modal.classList.remove('is-open');
+        setTimeout(() => modal.remove(), 320);
+      };
+
+      doneBtn.addEventListener('click', saveConstant);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          saveConstant();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          closeConstantEditor();
+        }
+      });
+
+      /* Enforce numeric input */
+      input.addEventListener('input', () => {
+        input.value = input.value.replace(/\D/g, '').slice(0, 12);
+      });
+
+      /* Custom backdrop handler for constant editor */
+      const backdropHandler = (e) => {
+        if (modal.classList.contains('is-open')) {
+          e.stopPropagation();
+          closeConstantEditor();
+        }
+      };
+
+      backdrop.addEventListener('pointerup', backdropHandler, { once: true });
+    };
+
     /* Tapping the backdrop dismisses without committing (alpha only) */
     backdrop.addEventListener('pointerup', () => {
       if (alphaSheet.classList.contains('is-open')) closeAlpha();
     });
 
     /* ------------------------------------------------------------------ */
-    /* ENTR — save to dsky.json + clear all fields                         */
+    /* Save entry to dsky.json                                             */
     /* ------------------------------------------------------------------ */
-    const clearAllFields = () => {
-      /* Visual clear */
-      [verbDisplay, nounDisplay].forEach(display => {
-        display.querySelectorAll('.digit svg').forEach(svg => {
-          svg.style.visibility = 'hidden';
-        });
-      });
-      progDigits.querySelectorAll('.digit').forEach(cell => {
-        cell.innerHTML = '';
-        cell.style.visibility = 'hidden';
-      });
-      clearR1();   /* also resets displayState.r1 */
-      /* State clear */
-      displayState.verb = '';
-      displayState.noun = '';
-      displayState.prog = '';
-      /* r2/r3 always '' until input is implemented */
-      syncEntrBtn();
-      syncCompRedy();
-    };
-
     const saveEntry = () => {
-      const entry = {
-        timestamp: new Date().toISOString(),
-        prog:  displayState.prog,
-        verb:  displayState.verb,
-        noun:  displayState.noun,
-        r1:    displayState.r1,
-        r2:    displayState.r2,
-        r3:    displayState.r3,
-        display: [
-          displayState.prog,
-          displayState.verb,
-          displayState.noun,
-          displayState.r1,
-          displayState.r2,
-          displayState.r3,
-        ].filter(v => v !== '').join(' '),
-      };
+      const isEmpty = Object.values(displayState).every(v => v === '');
 
-      /* Append to localStorage log */
-      let log = { log: [] };
+      /* Build the log — start from loadedLog if resident, else localStorage */
+      let log = { log: [], constant: constant };  /* Include constant at top level */
       try {
-        const stored = localStorage.getItem('dsky_log');
-        if (stored) log = JSON.parse(stored);
-      } catch (_) {}
-      log.log.push(entry);
-      try {
-        localStorage.setItem('dsky_log', JSON.stringify(log));
+        if (loadedLog) {
+          log = JSON.parse(JSON.stringify(loadedLog));  /* work on a copy */
+          log.constant = constant;  /* Update constant in loaded log */
+        } else {
+          const stored = localStorage.getItem('dsky_log');
+          if (stored) {
+            log = JSON.parse(stored);
+            log.constant = constant;  /* Update constant in stored log */
+          }
+        }
       } catch (_) {}
 
-      /* Download as dsky.json — blob is always available locally,
-         so we clear immediately after triggering the download */
+      if (slatedEntry !== null) {
+        /* Find the original entry's index in the log */
+        const idx = log.log.indexOf(slatedEntry);
+        const realIdx = idx !== -1 ? idx
+          : log.log.findIndex(e => e.timestamp === slatedEntry.timestamp);
+
+        if (isEmpty) {
+          /* All fields empty after CLR → delete the original entry */
+          if (realIdx !== -1) log.log.splice(realIdx, 1);
+        } else {
+          /* Fields modified → update the original entry in place */
+          const updated = {
+            ...slatedEntry,
+            timestamp: new Date().toISOString(),
+            prog:    displayState.prog,
+            verb:    displayState.verb,
+            noun:    displayState.noun,
+            r1:      displayState.r1,
+            r2:      displayState.r2,
+            r3:      displayState.r3,
+            display: [
+              displayState.prog, displayState.verb, displayState.noun,
+              displayState.r1,   displayState.r2,   displayState.r3,
+            ].filter(v => v !== '').join(' '),
+            modified: true,
+          };
+          if (realIdx !== -1) {
+            log.log[realIdx] = updated;
+          } else {
+            log.log.push(updated);
+          }
+        }
+        slatedEntry = null;
+
+      } else {
+        /* Normal mode — append new entry */
+        if (!isEmpty) {
+          const entry = {
+            timestamp: new Date().toISOString(),
+            prog:  displayState.prog,
+            verb:  displayState.verb,
+            noun:  displayState.noun,
+            r1:    displayState.r1,
+            r2:    displayState.r2,
+            r3:    displayState.r3,
+            display: [
+              displayState.prog, displayState.verb, displayState.noun,
+              displayState.r1,   displayState.r2,   displayState.r3,
+            ].filter(v => v !== '').join(' '),
+          };
+          log.log.push(entry);
+        }
+      }
+
+      /* Persist to localStorage */
+      try { localStorage.setItem('dsky_log', JSON.stringify(log)); } catch (_) {}
+
+      /* Download dsky.json */
       try {
-        const blob = new Blob(
-          [JSON.stringify(log, null, 2)],
-          { type: 'application/json' }
-        );
-        const url = URL.createObjectURL(blob);
-        const a   = document.createElement('a');
-        a.href     = url;
-        a.download = 'dsky.json';
+        const blob = new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href = url; a.download = 'dsky.json';
         document.body.appendChild(a);
         a.click();
         setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
       } catch (_) {}
 
-      /* Clear fields and switch ENTR → LOAD */
+      /* Clear display and reset state */
+      loadedLog = null;
       clearAllFields();
+      syncCompRedy();
     };
 
     /* ------------------------------------------------------------------ */
@@ -1582,7 +2030,20 @@
         openNumpad('noun');
 
       } else if (name === 'CLR') {
-        /* CLR always clears all fields — no toggle */
+        /* If a file is loaded, slate the currently-displayed entry for edit/removal */
+        if (loadedLog) {
+          /* Find the matching entry in the log by current displayState values */
+          const match = loadedLog.log.find(e =>
+            e.prog === displayState.prog &&
+            e.verb === displayState.verb &&
+            e.noun === displayState.noun &&
+            (e.r1  || '') === displayState.r1
+          ) || null;
+          slatedEntry = match;
+        } else {
+          slatedEntry = null;
+        }
+        /* Clear the display */
         [verbDisplay, nounDisplay].forEach(display => {
           display.querySelectorAll('.digit svg').forEach(svg => {
             svg.style.visibility = 'hidden';
@@ -1596,16 +2057,24 @@
         displayState.verb = '';
         displayState.noun = '';
         displayState.prog = '';
-        syncEntrBtn();   /* update ENTR/LOAD state after clear */
-        syncCompRedy();
+        syncEntrBtn();
+        /* Note: CLR does NOT clear loadedLog — file stays resident */
 
       } else if (name === 'PROG') {
         /* Open numeric pad targeting the PROG display field (1, 2, or 3 only) */
         openNumpad('prog');
 
       } else if (name === 'RSET') {
-        /* Open alpha sheet targeting the R1 register field */
-        openAlpha();
+        /* PROG=02 → open constant editor
+           PROG=03 + file loaded → open entry picker
+           Otherwise → open alpha sheet for Rx text entry */
+        if (displayState.prog === '02') {
+          openConstantEditor();
+        } else if (displayState.prog === '03' && loadedLog) {
+          openPicker();
+        } else {
+          openAlpha();
+        }
 
       } else if (name === 'ENTR') {
         /* Toggle: ENTR mode saves + clears; LOAD mode opens file picker */
@@ -1644,6 +2113,48 @@
           playFor(k);
           handleKey(k);
         }
+      });
+    });
+
+    /* ------------------------------------------------------------------ */
+    /* Copy button for constant (visible when PROG=02)                     */
+    /* ------------------------------------------------------------------ */
+    const copyBtn = document.getElementById('r2-copy-btn');
+    copyBtn.addEventListener('click', () => {
+      if (displayState.prog !== '02') return;
+      
+      /* The full value to copy is the concatenation of:
+         1. First 2 digits from R1 (or "00" if empty)
+         2. The full 12-digit constant
+      */
+      const r1Part = displayState.r1.length >= 2 
+        ? displayState.r1.slice(0, 2) 
+        : '00';
+      const valueToCopy = r1Part + constant;
+      
+      /* Use Clipboard API */
+      navigator.clipboard.writeText(valueToCopy).then(() => {
+        /* Visual feedback: briefly change color */
+        const svg = copyBtn.querySelector('svg');
+        const originalColor = '#35d39a';
+        svg.style.stroke = '#007aff';  /* iOS blue */
+        setTimeout(() => {
+          svg.style.stroke = originalColor;
+        }, 300);
+      }).catch(() => {
+        /* Fallback for older browsers */
+        const textarea = document.createElement('textarea');
+        textarea.value = valueToCopy;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand('copy');
+        } catch (err) {
+          /* Silently fail if copy not supported */
+        }
+        document.body.removeChild(textarea);
       });
     });
   })();
