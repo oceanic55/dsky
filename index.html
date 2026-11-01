@@ -613,29 +613,12 @@
                 <span class="dot d2"></span>
                 <span class="dot d3"></span>
 
-                <!-- PROG (digits hidden by default, "45" shown when STBY pressed) -->
+                <!-- PROG (digits populated via numpad when STBY pressed) -->
                 <div class="two-digit prog" id="prog-display">
                   <div class="pill">PROG</div>
                   <div class="digits" id="prog-digits">
-                    <!-- digit 4: top-left, top-right, middle, bottom-right -->
-                    <div class="digit" id="prog-d1" style="visibility:hidden">
-                      <svg viewBox="0 0 26 30" aria-hidden="true">
-                        <polygon class="seg" points="23.5,0 27.2,0 23.3,14.7 19.6,14.7"/>
-                        <polygon class="seg" points="7.6,0.6 3.8,14.7 7.5,14.7 10.3,4.3"/>
-                        <polygon class="seg" points="8.8,13.2 19.1,13.2 18.1,17.1 7.8,17.1"/>
-                        <polygon class="seg" points="19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6"/>
-                      </svg>
-                    </div>
-                    <!-- digit 5: top, top-left, middle, bottom-right, bottom -->
-                    <div class="digit" id="prog-d2" style="visibility:hidden">
-                      <svg viewBox="0 0 26 30" aria-hidden="true">
-                        <polygon class="seg" points="8.3,0 22.6,0 21.6,3.6 10.8,3.6"/>
-                        <polygon class="seg" points="7.6,0.6 3.8,14.7 7.5,14.7 10.3,4.3"/>
-                        <polygon class="seg" points="8.8,13.2 19.1,13.2 18.1,17.1 7.8,17.1"/>
-                        <polygon class="seg" points="19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6"/>
-                        <polygon class="seg" points="0.5,30 18.7,30 15.8,26.1 5.5,26.1"/>
-                      </svg>
-                    </div>
+                    <div class="digit" style="visibility:hidden"></div>
+                    <div class="digit" style="visibility:hidden"></div>
                   </div>
                 </div>
 
@@ -934,22 +917,23 @@
     /* ------------------------------------------------------------------ */
     const verbDisplay = document.getElementById('verb-display');   /* VERB field */
     const nounDisplay = document.getElementById('noun-display');   /* NOUN field */
-    const progD1      = document.getElementById('prog-d1');        /* PROG digit 1 */
-    const progD2      = document.getElementById('prog-d2');        /* PROG digit 2 */
     const verbDigits  = verbDisplay.querySelector('.digits');      /* digit cells inside VERB */
+    const nounDigits  = nounDisplay.querySelector('.digits');      /* digit cells inside NOUN */
+    const progDigits  = document.getElementById('prog-digits');   /* digit cells inside PROG */
 
     /* ------------------------------------------------------------------ */
     /* Numeric pad sheet                                                    */
     /* ------------------------------------------------------------------ */
-    const backdrop  = document.getElementById('numpad-backdrop');
-    const sheet     = document.getElementById('numpad-sheet');
-    const doneBtn   = document.getElementById('numpad-done');
-    const backBtn   = document.getElementById('numpad-back');
-    const pip0      = document.getElementById('numpad-pip-0');
-    const pip1      = document.getElementById('numpad-pip-1');
+    const backdrop     = document.getElementById('numpad-backdrop');
+    const sheet        = document.getElementById('numpad-sheet');
+    const doneBtn      = document.getElementById('numpad-done');
+    const backBtn      = document.getElementById('numpad-back');
+    const pip0         = document.getElementById('numpad-pip-0');
+    const pip1         = document.getElementById('numpad-pip-1');
+    const sheetTitle   = document.querySelector('.numpad-title');  /* dynamic label */
 
     let numpadEntry  = [];   /* array of 0..2 digit characters */
-    let numpadTarget = null; /* 'verb' | 'noun' (future use) */
+    let numpadTarget = null; /* 'verb' | 'noun' */
 
     const updatePips = () => {
       [pip0, pip1].forEach((pip, i) => {
@@ -966,6 +950,8 @@
     const openNumpad = (target) => {
       numpadTarget = target;
       numpadEntry  = [];
+      sheetTitle.textContent = target.toUpperCase();   /* "VERB" or "NOUN" */
+      sheet.setAttribute('aria-label', 'Enter ' + target.toUpperCase() + ' code');
       updatePips();
       backdrop.classList.add('is-open');
       sheet.classList.add('is-open');
@@ -987,6 +973,10 @@
 
       if (numpadTarget === 'verb') {
         renderTwoDigits(verbDigits, padded);
+      } else if (numpadTarget === 'noun') {
+        renderTwoDigits(nounDigits, padded);
+      } else if (numpadTarget === 'prog') {
+        renderTwoDigits(progDigits, padded);
       }
       closeNumpad();
     };
@@ -1048,19 +1038,25 @@
         /* Open numeric pad targeting the VERB display field */
         openNumpad('verb');
 
+      } else if (name === 'NOUN') {
+        /* Open numeric pad targeting the NOUN display field */
+        openNumpad('noun');
+
       } else if (name === 'CLR') {
-        /* Clear VERB and NOUN digit displays */
-        verbDisplay.querySelectorAll('.digit svg').forEach(svg => {
-          svg.style.visibility = 'hidden';
+        /* Clear VERB, NOUN, and PROG digit displays */
+        [verbDisplay, nounDisplay].forEach(display => {
+          display.querySelectorAll('.digit svg').forEach(svg => {
+            svg.style.visibility = 'hidden';
+          });
         });
-        nounDisplay.querySelectorAll('.digit svg').forEach(svg => {
-          svg.style.visibility = 'hidden';
+        progDigits.querySelectorAll('.digit').forEach(cell => {
+          cell.innerHTML = '';
+          cell.style.visibility = 'hidden';
         });
 
       } else if (name === 'STBY') {
-        /* Show "45" in the PROG display */
-        progD1.style.visibility = 'visible';
-        progD2.style.visibility = 'visible';
+        /* Open numeric pad targeting the PROG display field */
+        openNumpad('prog');
       }
     };
 
