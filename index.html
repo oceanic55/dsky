@@ -215,6 +215,13 @@
     color: #101b16;
   }
 
+  /* COMP REDY dirty — unsaved entry/constant changes */
+  .comp-acty.is-dirty {
+    background: #e02b2b;
+    box-shadow: 0 0 10px 3px rgba(224, 43, 43, 0.6);
+    color: #fff5f5;
+  }
+
   .dot {
     position: absolute;
     left: 91px;
@@ -400,7 +407,7 @@
     --p2: rgba(3, 3, 6, 0.6);
   }
 
-  /* ENTR key in LOAD mode — blue tint to signal load state */
+  /* OFFL/LOAD key in LOAD mode — blue tint to signal load state */
   .k.entr.is-load {
     --c1: #0a1528;
     --c2: #050a14;
@@ -474,36 +481,7 @@
       0 0 0 2px rgba(53, 211, 154, 0.55);
   }
 
-  /* RSET key active-mode (PROG=02) — red tint signals constant-edit mode */
-  .k.rset.is-active {
-    --c1: #5a0a0a;
-    --c2: #3a0505;
-    --p1: rgba(90, 10, 10, 0.8);
-    --p2: rgba(58, 5, 5, 0.8);
-  }
-
-  /* Copy icon button on R2 row */
-  .r2-copy {
-    display: none;
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    padding: 2px;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-    line-height: 1;
-  }
-  .r2-copy svg { display: block; }
-  .r2-copy:active { opacity: 0.5; }
-  /* Show only when PROG=02 is active */
-  .r2-copy-visible { display: block; }
-
-  /* R2 row needs relative positioning for the copy button */
-  .reg-row.r2 { position: absolute; }
+  /* SAVE key shares the red keycap tint with the base RSET styling above */
 
   /* Full-screen backdrop — blurs content behind, dims slightly */
   .numpad-backdrop {
@@ -692,7 +670,7 @@
     font-size: 16px;
   }
 
-  /* ================= Alpha sheet (RSET — standard keyboard) ================= */
+  /* ================= Alpha sheet (PROG 01 — R1 entry) ================= */
 
   .alpha-sheet {
     position: fixed;
@@ -764,7 +742,6 @@
     color: #1c1c1e;
     font-variant-numeric: tabular-nums;
     transition: background 120ms;
-    text-transform: uppercase;
   }
   .alpha-pip.has-char {
     background: #ffffff;
@@ -786,8 +763,8 @@
     font-size: 20px;          /* ≥16px prevents iOS auto-zoom */
     font-weight: 400;
     color: #007aff;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-transform: none;
     text-align: center;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
     caret-color: #007aff;
@@ -797,7 +774,7 @@
     letter-spacing: 0;
     font-weight: 300;
   }
-  /* ================= Entry picker sheet (PROG 03 + RSET) ================= */
+  /* ================= Entry picker sheet (PROG 03) ================= */
 
   .picker-sheet {
     position: fixed;
@@ -882,11 +859,13 @@
     color: #1c1c1e;
     letter-spacing: 0.04em;
     font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
   }
-  .picker-item-meta {
-    font-size: 12px;
+  .picker-empty {
+    padding: 18px 16px;
+    font-size: 15px;
     color: #8e8e93;
-    font-variant-numeric: tabular-nums;
+    text-align: center;
   }
 </style>
 </head>
@@ -964,12 +943,6 @@
                     <span class="reg-cell"></span><span class="reg-cell"></span>
                     <span class="reg-cell"></span>
                   </div>
-                  <button class="r2-copy" id="r2-copy-btn" type="button" aria-label="Copy full constant">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <rect x="4" y="4" width="8" height="8" rx="1.2" stroke="#35d39a" stroke-width="1.2" fill="none"/>
-                      <path d="M2 10V2h8" stroke="#35d39a" stroke-width="1.2" stroke-linecap="round" fill="none"/>
-                    </svg>
-                  </button>
                 </div>
 
                 <div class="reg-row r3" id="r3-row">
@@ -999,10 +972,10 @@
                   <span class="key-bevel" aria-hidden="true"></span>
                   <span class="key-label">CLR</span>
                 </button>
-                <button class="k entr" type="button" data-key="ENTR" data-sound="7" aria-label="ENTR">
+                <button class="k entr" type="button" data-key="ENTR" data-sound="7" aria-label="LOAD">
                   <span class="key-face" aria-hidden="true"></span>
                   <span class="key-bevel" aria-hidden="true"></span>
-                  <span class="key-label">ENTR</span>
+                  <span class="key-label">LOAD</span>
                 </button>
                 <button class="k noun" type="button" data-key="NOUN" data-sound="5" aria-label="NOUN">
                   <span class="key-face" aria-hidden="true"></span>
@@ -1014,10 +987,10 @@
                   <span class="key-bevel" aria-hidden="true"></span>
                   <span class="key-label">PROG</span>
                 </button>
-                <button class="k rset" type="button" data-key="RSET" data-sound="5" aria-label="RSET">
+                <button class="k rset" type="button" data-key="SAVE" data-sound="5" aria-label="SAVE">
                   <span class="key-face" aria-hidden="true"></span>
                   <span class="key-bevel" aria-hidden="true"></span>
-                  <span class="key-label">RSET</span>
+                  <span class="key-label">SAVE</span>
                 </button>
               </div>
 
@@ -1043,18 +1016,18 @@
          aria-hidden="true" tabindex="-1" />
 
   <!-- ============================================================
-       Numeric pad sheet — shown when VERB key is pressed
+       Numeric pad sheet — shown when PROG key is pressed
        iOS HIG: backdrop + bottom sheet, 3-col numpad, 2-digit cap
        ============================================================ -->
   <div class="numpad-backdrop" id="numpad-backdrop" role="presentation"></div>
 
   <div class="numpad-sheet" id="numpad-sheet"
-       role="dialog" aria-modal="true" aria-label="Enter VERB code">
+       role="dialog" aria-modal="true" aria-label="Enter PROG code">
 
     <div class="numpad-handle" aria-hidden="true"></div>
 
     <div class="numpad-bar">
-      <span class="numpad-title">VERB</span>
+      <span class="numpad-title">PROG</span>
       <button class="numpad-done" id="numpad-done" type="button">Done</button>
     </div>
 
@@ -1096,9 +1069,8 @@
   </div>
 
   <!-- ============================================================
-       Alpha sheet — shown when RSET is pressed
-       iOS HIG: backdrop shared with numpad, bottom sheet,
-       native OS keyboard via hidden input, 5-char max, → R1 field
+       Alpha sheet — R1 entry (opened automatically by PROG 01)
+       Two space-separated strings: R1 A and R1 B, 20 chars max
        ============================================================ -->
   <div class="alpha-sheet" id="alpha-sheet"
        role="dialog" aria-modal="true" aria-label="Enter R1 value">
@@ -1112,12 +1084,12 @@
 
     <input class="alpha-input" id="alpha-input"
            type="text" inputmode="text" autocomplete="off"
-           autocorrect="off" autocapitalize="characters"
-           spellcheck="false" maxlength="10"
-           placeholder="Enter up to 10 characters"
+           autocorrect="off" autocapitalize="none"
+           spellcheck="false" maxlength="20"
+           placeholder="R1 A R1 B — up to 20 characters"
            aria-label="R1 entry" />
 
-    <!-- Live preview: 5 pip tiles -->
+    <!-- Live preview: first 5 characters, as shown in R1 -->
     <div class="alpha-preview" aria-live="polite" aria-label="Current R1 entry">
       <div class="alpha-pip" id="alpha-pip-0">–</div>
       <div class="alpha-pip" id="alpha-pip-1">–</div>
@@ -1129,8 +1101,8 @@
   </div>
 
   <!-- ============================================================
-       Entry picker sheet — shown when PROG=03 + RSET pressed
-       Lists all R1 values from loaded JSON log for selection
+       Entry picker sheet — opened automatically by PROG 03
+       Lists R1 values from the loaded JSON, alphabetically
        ============================================================ -->
   <div class="picker-sheet" id="picker-sheet"
        role="dialog" aria-modal="true" aria-label="Select entry">
@@ -1325,36 +1297,66 @@
 
     /* ------------------------------------------------------------------ */
     /* Display state — single source of truth for all field values         */
-    /* Updated by every commit function; read by saveEntry()               */
     /* ------------------------------------------------------------------ */
     const displayState = { prog: '', verb: '', noun: '', r1: '', r2: '', r3: '' };
 
     /* Loaded JSON log — null until a file is successfully loaded */
     let loadedLog = null;
 
-    /* Entry slated for edit/removal when CLR is pressed with a file loaded.
-       null = normal save mode; non-null = update-in-place or delete mode */
-    let slatedEntry = null;
+    /* Entry currently selected for editing (reference into loadedLog.log) */
+    let currentEntry = null;
 
-    /* 12-digit constant (779900009999 by default) used for R2 calculation */
+    /* True when the displayed entry, constant, or trail is unsaved */
+    let dirty = false;
+
+    /* 12-character constant and 2-character trail, stored in the JSON */
     let constant = "779900009999";
+    let trail = "";
 
     /* ------------------------------------------------------------------ */
-    /* COMP REDY — ON when file resident, OFF when no file or entry picked */
+    /* COMP REDY — green when a file is resident and saved,               */
+    /* red while the resident file has unsaved changes, off when no file   */
     /* ------------------------------------------------------------------ */
     const syncCompRedy = () => {
-      compRedy.classList.toggle('is-ready', loadedLog !== null);
+      const hasFile = loadedLog !== null;
+      compRedy.classList.toggle('is-ready', hasFile && !dirty);
+      compRedy.classList.toggle('is-dirty', hasFile && dirty);
+    };
+
+    const refreshDirty = () => {
+      if (loadedLog === null) {
+        dirty = false;
+        syncCompRedy();
+        return;
+      }
+      const baseline = currentEntry ? currentEntry.r1 : '';
+      const entryChanged = (displayState.r1 || '').trim() !== baseline;
+      const settingsChanged = constant !== loadedLog.constant || trail !== loadedLog.trail;
+      dirty = entryChanged || settingsChanged;
+      syncCompRedy();
+    };
+
+    /* Keep entries ordered alphabetically by their full R1 value */
+    const compareEntries = (a, b) => {
+      const byR1 = String(a.r1 || '').localeCompare(String(b.r1 || ''), undefined, { sensitivity: 'base' });
+      if (byR1 !== 0) return byR1;
+      return String(a.timestamp || '').localeCompare(String(b.timestamp || ''));
+    };
+
+    const sortLog = (log) => {
+      if (Array.isArray(log.log)) log.log.sort(compareEntries);
+      return log;
     };
 
     /* ------------------------------------------------------------------ */
     /* Rx renderers and clear helpers                                       */
     /* ------------------------------------------------------------------ */
     const renderR1 = (str) => {
-      /* Store full string (up to 10 chars) in displayState */
-      const fullStr = str.toUpperCase().slice(0, 10);
-      /* Display only first 5 characters */
-      const displayStr = fullStr.slice(0, 5);
-      
+      /* Store the full value (up to 20 chars) in displayState */
+      const fullStr = String(str).slice(0, 20);
+      /* Display only the first 5 characters (7-segment glyphs are uppercase) */
+      const displayStr = fullStr.slice(0, 5).toUpperCase();
+
       r1Cells.forEach((cell, i) => {
         cell.innerHTML = '';
         if (displayStr[i] !== undefined) {
@@ -1433,47 +1435,22 @@
         }
       });
       displayState.r2 = derived;
-      /* Update copy button visibility based on PROG */
-      syncRsetBtn();
-    };
-
-    /* Sync RSET button state (red when PROG=02) */
-    const syncRsetBtn = () => {
-      const rsetBtn = document.querySelector('.k.rset');
-      const copyBtn = document.getElementById('r2-copy-btn');
-      const isProg02 = displayState.prog === '02';
-      
-      rsetBtn.classList.toggle('is-active', isProg02);
-      
-      /* Show copy button only when PROG=02 */
-      copyBtn.classList.toggle('r2-copy-visible', isProg02);
     };
 
     /* ------------------------------------------------------------------ */
-    /* ENTR ↔ LOAD toggle                                                   */
-    /* ENTR  — when any field has content: save → clear → switch to LOAD   */
-    /* LOAD  — when all fields empty: open file picker → populate fields   */
-    /* CLR   — always just clears, no toggle                                */
+    /* OFFL ↔ LOAD toggle                                                   */
+    /* LOAD — no file resident: open the file picker                        */
+    /* OFFL — file resident: unload it (no saving)                          */
     /* ------------------------------------------------------------------ */
-    const entrBtn   = document.querySelector('.k.entr');
-    const entrLabel = entrBtn.querySelector('.key-label');
+    const offlBtn   = document.querySelector('.k.entr');
+    const offlLabel = offlBtn.querySelector('.key-label');
     const loadInput = document.getElementById('load-input');
 
-    const isDisplayEmpty = () =>
-      Object.values(displayState).every(v => v === '');
-
-    const syncEntrBtn = () => {
-      /* Stay in ENTR/SAVE mode if there is a pending slated entry,
-         even when the display is blank (empty = delete on save) */
-      if (isDisplayEmpty() && slatedEntry === null) {
-        entrLabel.textContent = 'LOAD';
-        entrBtn.setAttribute('aria-label', 'LOAD');
-        entrBtn.classList.add('is-load');
-      } else {
-        entrLabel.textContent = 'ENTR';
-        entrBtn.setAttribute('aria-label', 'ENTR');
-        entrBtn.classList.remove('is-load');
-      }
+    const syncOfflBtn = () => {
+      const hasFile = loadedLog !== null;
+      offlLabel.textContent = hasFile ? 'OFFL' : 'LOAD';
+      offlBtn.setAttribute('aria-label', hasFile ? 'OFFL' : 'LOAD');
+      offlBtn.classList.toggle('is-load', !hasFile);
     };
 
     const clearAllFields = () => {
@@ -1491,26 +1468,40 @@
       /* Clear R2 and R3 */
       renderR2();
       clearRx(r3Cells, 'r3');
-      syncEntrBtn();
-      syncRsetBtn();  /* Update RSET button state */
+      syncOfflBtn();
       /* clearAllFields does NOT affect loadedLog or COMP REDY */
     };
 
-    /* Parse a dsky.json file — store in memory, light COMP REDY, show nothing */
+    /* Parse a dsky.json file — store in memory and light COMP REDY */
     const loadEntry = (file) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
           const parsed = JSON.parse(e.target.result);
-          /* Accept both {log:[...]} and a bare single-entry object */
-          loadedLog = Array.isArray(parsed.log) ? parsed : { log: [parsed] };
-          /* Load constant if present in file */
-          if (parsed.constant && parsed.constant.length === 12) {
-            constant = parsed.constant;
-          }
+          const rawLog = Array.isArray(parsed.log) ? parsed.log : [parsed];
+          const entries = rawLog
+            .map(entry => ({
+              timestamp: entry.timestamp || new Date().toISOString(),
+              r1: String(entry.r1 || '').slice(0, 20),
+            }))
+            .filter(entry => entry.r1.length > 0);
+
+          loadedLog = sortLog({
+            log: entries,
+            constant: (typeof parsed.constant === 'string' && parsed.constant.length === 12)
+              ? parsed.constant
+              : constant,
+            trail: (typeof parsed.trail === 'string') ? parsed.trail.slice(0, 2) : trail,
+          });
+
+          constant = loadedLog.constant;
+          trail    = loadedLog.trail;
+          currentEntry = null;
+          dirty = false;
           clearAllFields();   /* ensure display is blank */
-          syncCompRedy();     /* light up COMP REDY */
-          syncEntrBtn();
+          renderR2();
+          syncCompRedy();     /* green — file resident and saved */
+          syncOfflBtn();      /* OFFL */
         } catch (_) { /* silently ignore malformed files */ }
       };
       reader.readAsText(file);
@@ -1521,12 +1512,42 @@
       loadInput.value = '';   /* reset so same file can be reloaded */
     });
 
-    /* Set initial ENTR/LOAD state on page load (all fields empty = LOAD) */
-    syncEntrBtn();
-    syncRsetBtn();  /* Set initial RSET button state */
+    /* ------------------------------------------------------------------ */
+    /* Offload the resident log as dsky.json (used by the OFFL key)        */
+    /* SAVE never triggers this — only the explicit offload does.           */
+    /* ------------------------------------------------------------------ */
+    const downloadJSON = (log) => {
+      try {
+        const blob = new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href = url; a.download = 'dsky.json';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+      } catch (_) {}
+    };
+
+    const unloadFile = () => {
+      /* Offload the last saved resident log, then unload it from the app. */
+      if (loadedLog) downloadJSON(loadedLog);
+      loadedLog = null;
+      currentEntry = null;
+      dirty = false;
+      constant = "779900009999";
+      trail = '';
+      clearAllFields();
+      renderR2();
+      syncCompRedy();
+      syncOfflBtn();
+    };
+
+    /* Set initial OFFL/LOAD and COMP REDY state (no file = LOAD, dark) */
+    syncOfflBtn();
+    syncCompRedy();
 
     /* ------------------------------------------------------------------ */
-    /* Entry picker (PROG=03 + RSET)                                        */
+    /* Entry picker (opened automatically by PROG 03)                      */
     /* ------------------------------------------------------------------ */
     const closePicker = () => {
       backdrop.classList.remove('is-open');
@@ -1534,34 +1555,40 @@
     };
 
     const selectEntry = (entry) => {
+      /* Any unsaved edit to the previously displayed entry is discarded. */
+      dirty = false;
       clearAllFields();
-      if (entry.prog) { renderTwoDigits(progDigits, entry.prog); displayState.prog = entry.prog; }
-      if (entry.verb) { renderTwoDigits(verbDigits, entry.verb); displayState.verb = entry.verb; }
-      if (entry.noun) { renderTwoDigits(nounDigits, entry.noun); displayState.noun = entry.noun; }
-      if (entry.r1)   { renderR1(entry.r1); renderR2(); }
-      slatedEntry = null;
-      loadedLog = null;
-      syncCompRedy();
-      syncEntrBtn();
-      syncRsetBtn();  /* Update RSET button state */
+      renderR1(entry.r1 || '');
+      renderR2();
+      currentEntry = entry;
+      refreshDirty();   /* back to green — nothing unsaved */
+      syncOfflBtn();
       closePicker();
     };
 
     const openPicker = () => {
-      if (!loadedLog || !loadedLog.log.length) return;
       pickerList.innerHTML = '';
-      loadedLog.log.forEach((entry) => {
-        const r1Label = entry.r1 ? entry.r1.toUpperCase() : 'EMPTY';
-        const meta    = [entry.prog, entry.verb, entry.noun].filter(v => v).join(' · ') || '—';
-        const ts      = entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '';
+
+      if (!loadedLog || !loadedLog.log.length) {
+        const empty = document.createElement('div');
+        empty.className = 'picker-empty';
+        empty.textContent = loadedLog ? 'No entries' : 'No file loaded';
+        pickerList.appendChild(empty);
+        backdrop.classList.add('is-open');
+        pickerSheet.classList.add('is-open');
+        return;
+      }
+
+      const entries = [...loadedLog.log].sort(compareEntries);
+      entries.forEach((entry) => {
         const btn = document.createElement('button');
         btn.className = 'picker-item';
         btn.type = 'button';
-        btn.setAttribute('aria-label', r1Label);
-        btn.innerHTML = `
-          <span class="picker-item-r1">${r1Label}</span>
-          <span class="picker-item-meta">${meta}${ts ? '  ·  ' + ts : ''}</span>
-        `;
+        btn.setAttribute('aria-label', entry.r1);
+        const label = document.createElement('span');
+        label.className = 'picker-item-r1';
+        label.textContent = entry.r1;   /* full R1 A + R1 B, nothing else */
+        btn.appendChild(label);
         btn.addEventListener('pointerup', () => selectEntry(entry));
         btn.addEventListener('click',     () => selectEntry(entry));
         pickerList.appendChild(btn);
@@ -1588,7 +1615,7 @@
     const sheetTitle   = document.querySelector('.numpad-title');  /* dynamic label */
 
     let numpadEntry  = [];   /* array of 0..2 digit characters */
-    let numpadTarget = null; /* 'verb' | 'noun' */
+    let numpadTarget = null; /* 'prog' */
 
     const updatePips = () => {
       [pip0, pip1].forEach((pip, i) => {
@@ -1631,28 +1658,17 @@
         const padded = '0' + d;   /* always "01", "02", "03" */
         renderTwoDigits(progDigits, padded);
         displayState.prog = padded;
-        syncEntrBtn();
-        syncCompRedy();
-        syncRsetBtn();  /* Update RSET button state */
         closeNumpad();
+        /* Selecting a PROG opens its entry UI directly — no RSET needed. */
+        if (padded === '01') {
+          setTimeout(openAlpha, 220);
+        } else if (padded === '02') {
+          setTimeout(openConstantEditor, 220);
+        } else if (padded === '03') {
+          setTimeout(openPicker, 220);
+        }
         return;
       }
-
-      /* VERB / NOUN: pad to 2 digits with leading zero if needed */
-      const padded = numpadEntry.length === 1
-        ? '0' + numpadEntry[0]
-        : numpadEntry.join('');
-
-      if (numpadTarget === 'verb') {
-        renderTwoDigits(verbDigits, padded);
-        displayState.verb = padded;
-      } else if (numpadTarget === 'noun') {
-        renderTwoDigits(nounDigits, padded);
-        displayState.noun = padded;
-      }
-      syncEntrBtn();
-      syncCompRedy();
-      closeNumpad();
     };
 
     /* Numpad digit keys */
@@ -1739,8 +1755,7 @@
     });
 
     /* ------------------------------------------------------------------ */
-    /* Alpha sheet (RSET → Rx, routed by PROG value)                       */
-    /* PROG=01 → R1, PROG=02 → R2, PROG=03 → R3                           */
+    /* R1 alpha sheet (opened automatically by PROG 01)                    */
     /* ------------------------------------------------------------------ */
     const alphaSheet  = document.getElementById('alpha-sheet');
     const alphaInput  = document.getElementById('alpha-input');
@@ -1748,19 +1763,10 @@
     const alphaPips   = [0,1,2,3,4].map(i => document.getElementById('alpha-pip-' + i));
     const alphaTitle  = document.querySelector('.alpha-title');
 
-    /* Resolve which Rx to write based on PROG */
-    const getRxTarget = () => {
-      const p = displayState.prog;
-      if (p === '01') return { cells: r1Cells, key: 'r1', label: 'R1' };
-      if (p === '02') return { cells: r2Cells, key: 'r2', label: 'R2' };
-      if (p === '03') return { cells: r3Cells, key: 'r3', label: 'R3' };
-      return { cells: r1Cells, key: 'r1', label: 'R1' }; /* default if PROG unset */
-    };
-
     const updateAlphaPips = (val) => {
       alphaPips.forEach((pip, i) => {
         if (val[i] !== undefined) {
-          pip.textContent = val[i].toUpperCase();
+          pip.textContent = val[i];
           pip.classList.add('has-char');
         } else {
           pip.textContent = '–';
@@ -1770,13 +1776,17 @@
     };
 
     const openAlpha = () => {
-      const rx = getRxTarget();
-      alphaTitle.textContent = rx.label;         /* show R1, R2 or R3 */
-      alphaInput.value = '';
-      updateAlphaPips('');
+      /* Prefill with the currently displayed R1 (respects CLR). */
+      const initial = displayState.r1 || '';
+      alphaTitle.textContent = 'R1';
+      alphaInput.value = initial;
+      updateAlphaPips(initial);
       backdrop.classList.add('is-open');
       alphaSheet.classList.add('is-open');
-      alphaInput.focus();
+      setTimeout(() => {
+        alphaInput.focus();
+        alphaInput.select();
+      }, 30);
     };
 
     const closeAlpha = () => {
@@ -1787,26 +1797,17 @@
 
     const commitAlpha = () => {
       const val = alphaInput.value.trim();
-      if (val.length > 0) {
-        const rx = getRxTarget();
-        if (rx.key === 'r1') {
-          renderR1(val);
-          /* After R1 is set, auto-derive R2 */
-          renderR2();
-        } else {
-          renderRx(rx.cells, val, rx.key);
-        }
-        syncEntrBtn();
-        syncCompRedy();
-      }
+      renderR1(val);
+      renderR2();
+      refreshDirty();
       closeAlpha();
     };
 
     /* Keep pips in sync with every keystroke */
     alphaInput.addEventListener('input', () => {
-      /* Enforce 10-char cap (maxlength alone isn't reliable on all iOS versions) */
-      if (alphaInput.value.length > 10) {
-        alphaInput.value = alphaInput.value.slice(0, 10);
+      /* Enforce 20-char cap (maxlength alone isn't reliable on all iOS versions) */
+      if (alphaInput.value.length > 20) {
+        alphaInput.value = alphaInput.value.slice(0, 20);
       }
       updateAlphaPips(alphaInput.value);
     });
@@ -1819,10 +1820,10 @@
     alphaDone.addEventListener('click', commitAlpha);
 
     /* ------------------------------------------------------------------ */
-    /* Constant editor (PROG=02 + RSET)                                    */
+    /* Constant + trail editor (opened automatically by PROG 02)           */
     /* ------------------------------------------------------------------ */
     const openConstantEditor = () => {
-      /* Create a modal for constant editing */
+      /* Create a modal for constant and trail editing */
       const modal = document.createElement('div');
       modal.className = 'numpad-sheet';
       modal.style.position = 'fixed';
@@ -1842,16 +1843,27 @@
       modal.innerHTML = `
         <div class="numpad-handle" aria-hidden="true"></div>
         <div class="numpad-bar">
-          <span class="numpad-title">CONSTANT</span>
+          <span class="numpad-title">CONSTANT / TRAIL</span>
           <button class="numpad-done" id="constant-done" type="button">Done</button>
         </div>
-        <input class="alpha-input" id="constant-input"
-               type="text" inputmode="numeric" autocomplete="off"
-               autocorrect="off" autocapitalize="none"
-               spellcheck="false" maxlength="12"
-               placeholder="Enter 12 digits"
-               aria-label="Edit constant"
-               value="${constant}" />
+        <div style="padding:0 20px 20px;display:flex;flex-direction:column;gap:10px;">
+          <label for="constant-input" style="font-size:12px;font-weight:600;color:#3c3c43;text-transform:uppercase;letter-spacing:.04em;">Constant — 12 characters</label>
+          <input class="alpha-input" id="constant-input"
+                 style="margin:0;width:100%;"
+                 type="text" autocomplete="off"
+                 autocorrect="off" autocapitalize="none"
+                 spellcheck="false" maxlength="12"
+                 placeholder="Enter 12 characters"
+                 aria-label="Edit constant" />
+          <label for="trail-input" style="font-size:12px;font-weight:600;color:#3c3c43;text-transform:uppercase;letter-spacing:.04em;">Trail — 2 characters</label>
+          <input class="alpha-input" id="trail-input"
+                 style="margin:0;width:100%;"
+                 type="text" autocomplete="off"
+                 autocorrect="off" autocapitalize="none"
+                 spellcheck="false" maxlength="2"
+                 placeholder="e.g. ##"
+                 aria-label="Edit trail" />
+        </div>
       `;
 
       document.body.appendChild(modal);
@@ -1863,20 +1875,25 @@
         modal.style.transform = 'translateY(0)';
       }, 10);
 
-      const input = document.getElementById('constant-input');
-      const doneBtn = document.getElementById('constant-done');
+      const constantInput = document.getElementById('constant-input');
+      const trailInput    = document.getElementById('trail-input');
+      const doneBtn       = document.getElementById('constant-done');
+      constantInput.value = constant;
+      trailInput.value    = trail;
 
-      /* Focus and select all text */
       setTimeout(() => {
-        input.focus();
-        input.select();
+        constantInput.focus();
+        constantInput.select();
       }, 50);
 
       const saveConstant = () => {
-        const newValue = input.value.trim();
-        if (newValue.length === 12 && /^\d+$/.test(newValue)) {
-          constant = newValue;
+        const c = constantInput.value.slice(0, 12);
+        const t = trailInput.value.slice(0, 2);
+        if (c.length === 12) {
+          constant = c;
+          trail = t;
           renderR2();  /* Update R2 display with new constant */
+          refreshDirty();
         }
         closeConstantEditor();
       };
@@ -1889,19 +1906,24 @@
       };
 
       doneBtn.addEventListener('click', saveConstant);
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          saveConstant();
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          closeConstantEditor();
-        }
+      [constantInput, trailInput].forEach(input => {
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            saveConstant();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            closeConstantEditor();
+          }
+        });
       });
 
-      /* Enforce numeric input */
-      input.addEventListener('input', () => {
-        input.value = input.value.replace(/\D/g, '').slice(0, 12);
+      /* Enforce caps */
+      constantInput.addEventListener('input', () => {
+        constantInput.value = constantInput.value.slice(0, 12);
+      });
+      trailInput.addEventListener('input', () => {
+        trailInput.value = trailInput.value.slice(0, 2);
       });
 
       /* Custom backdrop handler for constant editor */
@@ -1921,98 +1943,71 @@
     });
 
     /* ------------------------------------------------------------------ */
-    /* Save entry to dsky.json                                             */
+    /* Save the displayed entry / constant / trail into the resident log    */
+    /* SAVE stays in-app — it must not open a file download prompt.         */
     /* ------------------------------------------------------------------ */
-    const saveEntry = () => {
-      const isEmpty = Object.values(displayState).every(v => v === '');
-
-      /* Build the log — start from loadedLog if resident, else localStorage */
-      let log = { log: [], constant: constant };  /* Include constant at top level */
-      try {
-        if (loadedLog) {
-          log = JSON.parse(JSON.stringify(loadedLog));  /* work on a copy */
-          log.constant = constant;  /* Update constant in loaded log */
-        } else {
-          const stored = localStorage.getItem('dsky_log');
-          if (stored) {
-            log = JSON.parse(stored);
-            log.constant = constant;  /* Update constant in stored log */
-          }
-        }
-      } catch (_) {}
-
-      if (slatedEntry !== null) {
-        /* Find the original entry's index in the log */
-        const idx = log.log.indexOf(slatedEntry);
-        const realIdx = idx !== -1 ? idx
-          : log.log.findIndex(e => e.timestamp === slatedEntry.timestamp);
-
-        if (isEmpty) {
-          /* All fields empty after CLR → delete the original entry */
-          if (realIdx !== -1) log.log.splice(realIdx, 1);
-        } else {
-          /* Fields modified → update the original entry in place */
-          const updated = {
-            ...slatedEntry,
-            timestamp: new Date().toISOString(),
-            prog:    displayState.prog,
-            verb:    displayState.verb,
-            noun:    displayState.noun,
-            r1:      displayState.r1,
-            r2:      displayState.r2,
-            r3:      displayState.r3,
-            display: [
-              displayState.prog, displayState.verb, displayState.noun,
-              displayState.r1,   displayState.r2,   displayState.r3,
-            ].filter(v => v !== '').join(' '),
-            modified: true,
-          };
-          if (realIdx !== -1) {
-            log.log[realIdx] = updated;
-          } else {
-            log.log.push(updated);
-          }
-        }
-        slatedEntry = null;
-
-      } else {
-        /* Normal mode — append new entry */
-        if (!isEmpty) {
-          const entry = {
-            timestamp: new Date().toISOString(),
-            prog:  displayState.prog,
-            verb:  displayState.verb,
-            noun:  displayState.noun,
-            r1:    displayState.r1,
-            r2:    displayState.r2,
-            r3:    displayState.r3,
-            display: [
-              displayState.prog, displayState.verb, displayState.noun,
-              displayState.r1,   displayState.r2,   displayState.r3,
-            ].filter(v => v !== '').join(' '),
-          };
-          log.log.push(entry);
-        }
+    const saveCurrent = () => {
+      /* The resident file is the only source; after OFFL nothing is retained. */
+      let logArr = [];
+      if (loadedLog && Array.isArray(loadedLog.log)) {
+        logArr = JSON.parse(JSON.stringify(loadedLog.log));
       }
 
-      /* Persist to localStorage */
-      try { localStorage.setItem('dsky_log', JSON.stringify(log)); } catch (_) {}
+      const r1 = (displayState.r1 || '').trim().slice(0, 20);
+      const oldTs = currentEntry ? currentEntry.timestamp : null;
+      const idx = oldTs !== null ? logArr.findIndex(e => e.timestamp === oldTs) : -1;
+      let savedTs = null;
 
-      /* Download dsky.json */
-      try {
-        const blob = new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' });
-        const url  = URL.createObjectURL(blob);
-        const a    = document.createElement('a');
-        a.href = url; a.download = 'dsky.json';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
-      } catch (_) {}
+      if (currentEntry !== null) {
+        if (r1 === '') {
+          /* Cleared selected entry + SAVE → remove it from the log. */
+          if (idx !== -1) logArr.splice(idx, 1);
+        } else {
+          const updated = { timestamp: new Date().toISOString(), r1 };
+          savedTs = updated.timestamp;
+          if (idx !== -1) logArr[idx] = updated;
+          else logArr.push(updated);
+        }
+      } else if (r1 !== '') {
+        const added = { timestamp: new Date().toISOString(), r1 };
+        savedTs = added.timestamp;
+        logArr.push(added);
+      }
 
-      /* Clear display and reset state */
-      loadedLog = null;
-      clearAllFields();
+      /* Alphabetical by full R1 value, constant and trail at the bottom. */
+      const log = sortLog({ log: logArr, constant, trail });
+
+      /* The saved log becomes the resident file; COMP REDY returns to green. */
+      loadedLog = log;
+      currentEntry = savedTs ? (log.log.find(e => e.timestamp === savedTs) || null) : null;
+      dirty = false;
+      renderR1(r1);
+      renderR2();
       syncCompRedy();
+      syncOfflBtn();
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* Clipboard helpers                                                   */
+    /* ------------------------------------------------------------------ */
+    const fallbackCopy = (text) => {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(textarea);
+    };
+
+    const copyText = (text) => {
+      if (!text) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+      } else {
+        fallbackCopy(text);
+      }
     };
 
     /* ------------------------------------------------------------------ */
@@ -2022,70 +2017,42 @@
       const name = key.dataset.key;
 
       if (name === 'VERB') {
-        /* Open numeric pad targeting the VERB display field */
-        openNumpad('verb');
+        /* VERB copies R1 B — everything after the first space in R1 */
+        const r1 = (displayState.r1 || '').trim();
+        const sep = r1.indexOf(' ');
+        copyText(sep === -1 ? '' : r1.slice(sep + 1).trim());
 
       } else if (name === 'NOUN') {
-        /* Open numeric pad targeting the NOUN display field */
-        openNumpad('noun');
+        /* NOUN copies: R1[0] uppercase + R1[1] lowercase + constant + trail */
+        const r1 = displayState.r1 || '';
+        copyText(r1.charAt(0).toUpperCase() + r1.charAt(1).toLowerCase() + constant + trail);
 
       } else if (name === 'CLR') {
-        /* If a file is loaded, slate the currently-displayed entry for edit/removal */
-        if (loadedLog) {
-          /* Find the matching entry in the log by current displayState values */
-          const match = loadedLog.log.find(e =>
-            e.prog === displayState.prog &&
-            e.verb === displayState.verb &&
-            e.noun === displayState.noun &&
-            (e.r1  || '') === displayState.r1
-          ) || null;
-          slatedEntry = match;
-        } else {
-          slatedEntry = null;
-        }
-        /* Clear the display */
-        [verbDisplay, nounDisplay].forEach(display => {
-          display.querySelectorAll('.digit svg').forEach(svg => {
-            svg.style.visibility = 'hidden';
-          });
-        });
-        progDigits.querySelectorAll('.digit').forEach(cell => {
-          cell.innerHTML = '';
-          cell.style.visibility = 'hidden';
-        });
-        clearR1();
-        displayState.verb = '';
-        displayState.noun = '';
-        displayState.prog = '';
-        syncEntrBtn();
-        /* Note: CLR does NOT clear loadedLog — file stays resident */
+        clearAllFields();
+        /* A cleared selected entry stays pending until SAVE removes it;
+           clearing an unsaved new entry simply discards it. */
+        refreshDirty();
 
       } else if (name === 'PROG') {
         /* Open numeric pad targeting the PROG display field (1, 2, or 3 only) */
         openNumpad('prog');
 
-      } else if (name === 'RSET') {
-        /* PROG=02 → open constant editor
-           PROG=03 + file loaded → open entry picker
-           Otherwise → open alpha sheet for Rx text entry */
-        if (displayState.prog === '02') {
-          openConstantEditor();
-        } else if (displayState.prog === '03' && loadedLog) {
-          openPicker();
-        } else {
-          openAlpha();
-        }
+      } else if (name === 'SAVE') {
+        saveCurrent();
 
       } else if (name === 'ENTR') {
-        /* Toggle: ENTR mode saves + clears; LOAD mode opens file picker */
-        if (entrBtn.classList.contains('is-load')) {
-          loadInput.click();
+        /* OFFL unloads the resident file; LOAD opens the file picker. */
+        if (loadedLog !== null) {
+          unloadFile();
         } else {
-          saveEntry();
+          loadInput.click();
         }
       }
     };
 
+    /* ------------------------------------------------------------------ */
+    /* Keyboard activation wiring                                          */
+    /* ------------------------------------------------------------------ */
     const activate = (k) => {
       press(k);
       setTimeout(() => release(k), PRESS_MS);
@@ -2113,48 +2080,6 @@
           playFor(k);
           handleKey(k);
         }
-      });
-    });
-
-    /* ------------------------------------------------------------------ */
-    /* Copy button for constant (visible when PROG=02)                     */
-    /* ------------------------------------------------------------------ */
-    const copyBtn = document.getElementById('r2-copy-btn');
-    copyBtn.addEventListener('click', () => {
-      if (displayState.prog !== '02') return;
-      
-      /* The full value to copy is the concatenation of:
-         1. First 2 digits from R1 (or "00" if empty)
-         2. The full 12-digit constant
-      */
-      const r1Part = displayState.r1.length >= 2 
-        ? displayState.r1.slice(0, 2) 
-        : '00';
-      const valueToCopy = r1Part + constant;
-      
-      /* Use Clipboard API */
-      navigator.clipboard.writeText(valueToCopy).then(() => {
-        /* Visual feedback: briefly change color */
-        const svg = copyBtn.querySelector('svg');
-        const originalColor = '#35d39a';
-        svg.style.stroke = '#007aff';  /* iOS blue */
-        setTimeout(() => {
-          svg.style.stroke = originalColor;
-        }, 300);
-      }).catch(() => {
-        /* Fallback for older browsers */
-        const textarea = document.createElement('textarea');
-        textarea.value = valueToCopy;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        try {
-          document.execCommand('copy');
-        } catch (err) {
-          /* Silently fail if copy not supported */
-        }
-        document.body.removeChild(textarea);
       });
     });
   })();
