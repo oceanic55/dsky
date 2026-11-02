@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>DSKY</title>
+<title>AGC DSKY Mini</title>
 <style>
   /* ============================================================
      DSKY display panel + 3×2 keypad
@@ -125,6 +125,26 @@
     max-width: calc(274px * var(--s));
     overflow: hidden;
     text-overflow: ellipsis;
+    
+    /* Add transitions for smooth state changes */
+    transition: color 0.3s ease, opacity 0.3s ease;
+  }
+
+  /* Optional: Add visual feedback for different message states */
+  .caption[data-state="error"] {
+    color: #ff6b6b; /* Red for errors */
+  }
+
+  .caption[data-state="success"] {
+    color: #35d39a; /* Mint green for success */
+  }
+
+  .caption[data-state="warning"] {
+    color: #ffa726; /* Orange for warnings */
+  }
+
+  .caption[data-state="info"] {
+    color: #77777b; /* Original color for info */
   }
 
   /* ---------------- Scaled stage (uniform, like the app) ---------------- */
@@ -1356,6 +1376,27 @@
     let fileName = 'dsky.json';
 
     /* ------------------------------------------------------------------ */
+    /* Message state management                                            */
+    /* ------------------------------------------------------------------ */
+    const messageState = {
+      current: 'NO_FILE',
+      previous: null,
+      timeoutId: null,
+      
+      STATES: {
+        NO_FILE: 'AGC DSKY Mini - No File',
+        FILE_LOADED: 'AGC DSKY Mini - {fileName}',
+        ENTRY_SAVED: 'ENTRY SAVED',
+        SAVE_ERROR: 'SAVE ERROR',
+        R1_NOT_SAVED: 'R1 NOT SAVED',
+        ENTRY_CLEAR: 'ENTRY CLEAR',
+        ENTRY_LOADED: '{r1bContent}',
+        R1B_COPY: 'R1 B COPY',
+        KY_COPY: 'KY COPY'
+      }
+    };
+
+    /* ------------------------------------------------------------------ */
     /* COMP REDY states:                                                   */
     /*   green  — a document is resident, no entry loaded, nothing unsaved  */
     /*   orange — an entry is loaded/visualised and unchanged               */
@@ -1385,6 +1426,11 @@
       const settingsChanged = constant !== loadedLog.constant || trail !== loadedLog.trail;
       dirty = entryChanged || settingsChanged;
       syncCompRedy();
+      
+      // Update message for R1 NOT SAVED state
+      if (currentEntry !== null && dirty === true) {
+        updateMessage('R1_NOT_SAVED');
+      }
     };
 
     /* Keep entries ordered alphabetically by their full R1 value */
@@ -1397,6 +1443,79 @@
     const sortLog = (log) => {
       if (Array.isArray(log.log)) log.log.sort(compareEntries);
       return log;
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* Message update function                                              */
+    /* ------------------------------------------------------------------ */
+    const updateMessage = (state, data = {}) => {
+      // Clear any existing timeout
+      if (messageState.timeoutId) {
+        clearTimeout(messageState.timeoutId);
+        messageState.timeoutId = null;
+      }
+      
+      // Store previous state if not a timed message
+      if (!['R1B_COPY', 'KY_COPY', 'ENTRY_CLEAR', 'ENTRY_SAVED', 'SAVE_ERROR'].includes(state)) {
+        messageState.previous = messageState.current;
+      }
+      
+      // Update current state
+      messageState.current = state;
+      
+      // Get message text
+      let message = messageState.STATES[state];
+      if (state === 'FILE_LOADED' && data.fileName) {
+        message = message.replace('{fileName}', data.fileName);
+      } else if (state === 'ENTRY_LOADED' && data.r1bContent) {
+        message = data.r1bContent; // Full R1 B content (will be truncated with ellipsis if too long)
+      }
+      
+      // Update DOM
+      const caption = document.querySelector('.caption');
+      if (caption) {
+        caption.textContent = message;
+        // Set data-state for CSS colour coding
+        const stateMap = {
+          SAVE_ERROR: 'error',
+          R1_NOT_SAVED: 'warning',
+          ENTRY_SAVED: 'success',
+          R1B_COPY: 'success',
+          KY_COPY: 'success'
+        };
+        caption.dataset.state = stateMap[state] || 'info';
+      }
+      
+      // Handle timed messages
+      if (state === 'R1B_COPY' || state === 'KY_COPY') {
+        messageState.timeoutId = setTimeout(() => {
+          // After copy confirmation, default back to R1 B contents if an entry is loaded
+          if (currentEntry !== null) {
+            const r1Parts = (currentEntry.r1 || '').split(' ');
+            const r1b = r1Parts.length > 1 ? r1Parts.slice(1).join(' ') : '';
+            updateMessage('ENTRY_LOADED', { r1bContent: r1b });
+          } else {
+            // No entry loaded, revert to previous state
+            updateMessage(messageState.previous, data);
+          }
+        }, 5000);
+      } else if (state === 'ENTRY_CLEAR') {
+        messageState.timeoutId = setTimeout(() => {
+          if (loadedLog !== null) {
+            updateMessage('FILE_LOADED', { fileName });
+          } else {
+            updateMessage('NO_FILE');
+          }
+        }, 5000);
+      } else if (state === 'ENTRY_SAVED' || state === 'SAVE_ERROR') {
+        messageState.timeoutId = setTimeout(() => {
+          if (loadedLog !== null) {
+            updateMessage('FILE_LOADED', { fileName });
+          } else {
+            updateMessage('NO_FILE');
+          }
+        }, 3000);
+      }
     };
 
     /* ------------------------------------------------------------------ */
@@ -1532,6 +1651,7 @@
           renderR2();
           syncCompRedy();     /* green — file resident and saved */
           syncOfflBtn();      /* OFFL */
+          updateMessage('FILE_LOADED', { fileName });
         } catch (_) { /* silently ignore malformed files */ }
       };
       reader.readAsText(file);
@@ -1571,11 +1691,13 @@
       renderR2();
       syncCompRedy();
       syncOfflBtn();
+      updateMessage('NO_FILE');
     };
 
     /* Set initial OFFL/LOAD and COMP REDY state (no file = LOAD, dark) */
     syncOfflBtn();
     syncCompRedy();
+    updateMessage('NO_FILE');
 
     /* ------------------------------------------------------------------ */
     /* Entry picker (opened automatically by PROG 03)                      */
@@ -1595,6 +1717,11 @@
       refreshDirty();   /* orange — entry loaded, nothing unsaved */
       syncOfflBtn();
       closePicker();
+      
+      // Update message with R1 B content
+      const r1Parts = (entry.r1 || '').split(' ');
+      const r1b = r1Parts.length > 1 ? r1Parts.slice(1).join(' ') : '';
+      updateMessage('ENTRY_LOADED', { r1bContent: r1b });
     };
 
     const openPicker = () => {
@@ -2105,46 +2232,54 @@
     /* SAVE stays in-app — it must not open a file download prompt.         */
     /* ------------------------------------------------------------------ */
     const saveCurrent = () => {
-      /* The resident file is the only source; after OFFL nothing is retained. */
-      let logArr = [];
-      if (loadedLog && Array.isArray(loadedLog.log)) {
-        logArr = JSON.parse(JSON.stringify(loadedLog.log));
-      }
-
-      const r1 = (displayState.r1 || '').trim().slice(0, 30);
-      const oldTs = currentEntry ? currentEntry.timestamp : null;
-      const idx = oldTs !== null ? logArr.findIndex(e => e.timestamp === oldTs) : -1;
-
-      /* Nothing meaningful to save and no document resident: no-op. */
-      if (loadedLog === null && r1 === '' && constant === "779900009999" && trail === '') {
-        return;
-      }
-
-      if (currentEntry !== null) {
-        if (r1 === '') {
-          /* Cleared selected entry + SAVE → remove it from the log. */
-          if (idx !== -1) logArr.splice(idx, 1);
-        } else {
-          const updated = { timestamp: new Date().toISOString(), r1 };
-          if (idx !== -1) logArr[idx] = updated;
-          else logArr.push(updated);
+      try {
+        /* The resident file is the only source; after OFFL nothing is retained. */
+        let logArr = [];
+        if (loadedLog && Array.isArray(loadedLog.log)) {
+          logArr = JSON.parse(JSON.stringify(loadedLog.log));
         }
-      } else if (r1 !== '') {
-        logArr.push({ timestamp: new Date().toISOString(), r1 });
+
+        const r1 = (displayState.r1 || '').trim().slice(0, 30);
+        const oldTs = currentEntry ? currentEntry.timestamp : null;
+        const idx = oldTs !== null ? logArr.findIndex(e => e.timestamp === oldTs) : -1;
+
+        /* Nothing meaningful to save and no document resident: no-op. */
+        if (loadedLog === null && r1 === '' && constant === "779900009999" && trail === '') {
+          return;
+        }
+
+        if (currentEntry !== null) {
+          if (r1 === '') {
+            /* Cleared selected entry + SAVE → remove it from the log. */
+            if (idx !== -1) logArr.splice(idx, 1);
+          } else {
+            const updated = { timestamp: new Date().toISOString(), r1 };
+            if (idx !== -1) logArr[idx] = updated;
+            else logArr.push(updated);
+          }
+        } else if (r1 !== '') {
+          logArr.push({ timestamp: new Date().toISOString(), r1 });
+        }
+
+        /* Alphabetical by full R1 value, constant and trail at the bottom. */
+        const log = sortLog({ log: logArr, constant, trail });
+
+        /* The saved document stays resident, but the entry unloads so the next
+           SAVE creates a new entry instead of editing this one. */
+        loadedLog = log;
+        currentEntry = null;
+        dirty = false;
+        renderR1('');
+        renderR2();
+        syncCompRedy();
+        syncOfflBtn();
+        
+        // Show success message
+        updateMessage('ENTRY_SAVED');
+      } catch (error) {
+        // Show error message
+        updateMessage('SAVE_ERROR');
       }
-
-      /* Alphabetical by full R1 value, constant and trail at the bottom. */
-      const log = sortLog({ log: logArr, constant, trail });
-
-      /* The saved document stays resident, but the entry unloads so the next
-         SAVE creates a new entry instead of editing this one. */
-      loadedLog = log;
-      currentEntry = null;
-      dirty = false;
-      renderR1('');
-      renderR2();
-      syncCompRedy();
-      syncOfflBtn();
     };
 
     /* ------------------------------------------------------------------ */
@@ -2183,11 +2318,13 @@
         const sep = r1.indexOf(' ');
         const r1b = sep === -1 ? '' : r1.slice(sep + 1).trim();
         copyText(r1b || '*empty*');
+        updateMessage('R1B_COPY');
 
       } else if (name === 'NOUN') {
         /* NOUN copies: R1[0] uppercase + R1[1] lowercase + constant + trail */
         const r1 = displayState.r1 || '';
         copyText(r1.charAt(0).toUpperCase() + r1.charAt(1).toLowerCase() + constant + trail);
+        updateMessage('KY_COPY');
 
       } else if (name === 'CLR') {
         clearAllFields();
@@ -2195,6 +2332,7 @@
            PROG 01 edits entry contents; CLR only removes them from view. */
         currentEntry = null;
         refreshDirty();
+        updateMessage('ENTRY_CLEAR');
 
       } else if (name === 'PROG') {
         /* Open numeric pad targeting the PROG display field (1–4 only) */
