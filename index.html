@@ -215,6 +215,13 @@
     color: #101b16;
   }
 
+  /* COMP REDY entry-loaded — orange: an entry is displayed but unchanged */
+  .comp-acty.is-entry {
+    background: #ff9f0a;
+    box-shadow: 0 0 10px 3px rgba(255, 159, 10, 0.6);
+    color: #241a00;
+  }
+
   /* COMP REDY dirty — unsaved entry/constant changes */
   .comp-acty.is-dirty {
     background: #e02b2b;
@@ -749,6 +756,27 @@
     font-weight: 400;
   }
 
+  /* Two-field stack (R1 A / R1 B) inside the alpha sheet */
+  .alpha-fields {
+    padding: 0 20px 8px;
+  }
+  .alpha-field-label {
+    display: block;
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #3c3c43;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .alpha-fields .alpha-input {
+    width: 100%;
+    margin: 0 0 14px;
+  }
+  .alpha-fields .alpha-input:last-of-type {
+    margin-bottom: 4px;
+  }
+
   /* The text field — visible, tappable, summons OS keyboard on tap */
   .alpha-input {
     display: block;
@@ -1070,7 +1098,7 @@
 
   <!-- ============================================================
        Alpha sheet — R1 entry (opened automatically by PROG 01)
-       Two space-separated strings: R1 A and R1 B, 20 chars max
+       Two fields: R1 A and R1 B, combined 30 chars max
        ============================================================ -->
   <div class="alpha-sheet" id="alpha-sheet"
        role="dialog" aria-modal="true" aria-label="Enter R1 value">
@@ -1082,12 +1110,23 @@
       <button class="alpha-done" id="alpha-done" type="button">Done</button>
     </div>
 
-    <input class="alpha-input" id="alpha-input"
-           type="text" inputmode="text" autocomplete="off"
-           autocorrect="off" autocapitalize="none"
-           spellcheck="false" maxlength="20"
-           placeholder="R1 A R1 B — up to 20 characters"
-           aria-label="R1 entry" />
+    <div class="alpha-fields">
+      <label class="alpha-field-label" for="alpha-input-a">R1 A</label>
+      <input class="alpha-input" id="alpha-input-a"
+             type="text" inputmode="text" autocomplete="off"
+             autocorrect="off" autocapitalize="none"
+             spellcheck="false" maxlength="30"
+             placeholder="R1 A — up to 30 characters"
+             aria-label="R1 A entry" />
+
+      <label class="alpha-field-label" for="alpha-input-b">R1 B</label>
+      <input class="alpha-input" id="alpha-input-b"
+             type="text" inputmode="text" autocomplete="off"
+             autocorrect="off" autocapitalize="none"
+             spellcheck="false" maxlength="30"
+             placeholder="R1 B"
+             aria-label="R1 B entry" />
+    </div>
 
     <!-- Live preview: first 5 characters, as shown in R1 -->
     <div class="alpha-preview" aria-live="polite" aria-label="Current R1 entry">
@@ -1273,7 +1312,7 @@
     const release = (k) => k.classList.remove('is-pressed');
 
     /* ------------------------------------------------------------------ */
-    /* Display refs (matches map.md layout)                                 */
+    /* Display refs (matches the layout map in .subagents/overview.md)      */
     /* ------------------------------------------------------------------ */
     const verbDisplay = document.getElementById('verb-display');   /* VERB field */
     const nounDisplay = document.getElementById('noun-display');   /* NOUN field */
@@ -1313,13 +1352,21 @@
     let constant = "779900009999";
     let trail = "";
 
+    /* Name used when the resident log is offloaded as a file */
+    let fileName = 'dsky.json';
+
     /* ------------------------------------------------------------------ */
-    /* COMP REDY — green when a file is resident and saved,               */
-    /* red while the resident file has unsaved changes, off when no file   */
+    /* COMP REDY states:                                                   */
+    /*   green  — a document is resident, no entry loaded, nothing unsaved  */
+    /*   orange — an entry is loaded/visualised and unchanged               */
+    /*   red    — a new or modified entry (or settings) is unsaved          */
+    /*   off    — no document is resident                                   */
     /* ------------------------------------------------------------------ */
     const syncCompRedy = () => {
-      const hasFile = loadedLog !== null;
-      compRedy.classList.toggle('is-ready', hasFile && !dirty);
+      const hasFile  = loadedLog !== null;
+      const hasEntry = hasFile && currentEntry !== null;
+      compRedy.classList.toggle('is-ready', hasFile && !dirty && !hasEntry);
+      compRedy.classList.toggle('is-entry', hasFile && !dirty && hasEntry);
       compRedy.classList.toggle('is-dirty', hasFile && dirty);
     };
 
@@ -1329,8 +1376,12 @@
         syncCompRedy();
         return;
       }
-      const baseline = currentEntry ? currentEntry.r1 : '';
-      const entryChanged = (displayState.r1 || '').trim() !== baseline;
+      const r1 = (displayState.r1 || '').trim();
+      /* No loaded entry: any R1 content is a new unsaved entry.
+         Loaded entry: only a different R1 counts as an edit. */
+      const entryChanged = currentEntry
+        ? r1 !== String(currentEntry.r1 || '').trim()
+        : r1 !== '';
       const settingsChanged = constant !== loadedLog.constant || trail !== loadedLog.trail;
       dirty = entryChanged || settingsChanged;
       syncCompRedy();
@@ -1352,8 +1403,8 @@
     /* Rx renderers and clear helpers                                       */
     /* ------------------------------------------------------------------ */
     const renderR1 = (str) => {
-      /* Store the full value (up to 20 chars) in displayState */
-      const fullStr = String(str).slice(0, 20);
+      /* Store the full value (up to 30 chars) in displayState */
+      const fullStr = String(str).slice(0, 30);
       /* Display only the first 5 characters (7-segment glyphs are uppercase) */
       const displayStr = fullStr.slice(0, 5).toUpperCase();
 
@@ -1395,46 +1446,23 @@
       displayState[stateKey] = '';
     };
 
-    /* Render R2 based on R1 value and constant */
+    /* Render R2 as the first 5 characters of R1 B */
     const renderR2 = () => {
       const r1Val = displayState.r1;
-      let derived = '';
-      
-      if (r1Val.length >= 2) {
-        /* First 2 digits from R1 */
-        derived += r1Val.slice(0, 2);
-      } else if (r1Val.length === 1) {
-        /* If only 1 digit, pad with 0 */
-        derived += r1Val + '0';
-      } else {
-        /* No R1 input - show blanks */
-        derived += '  ';
-      }
-      
-      /* Cell 3: blank (space) */
-      derived += ' ';
-      
-      /* Last 2 digits from constant */
-      if (constant && constant.length >= 2) {
-        derived += constant.slice(0, 2);
-      } else {
-        derived += '00';
-      }
-      
-      /* Ensure we have exactly 5 characters */
-      const padded = derived.padEnd(5, ' ');
-      
+      const sep = r1Val.indexOf(' ');
+      const r1b = sep === -1 ? '' : r1Val.slice(sep + 1);
+      const displayStr = r1b.slice(0, 5).toUpperCase();
+
       r2Cells.forEach((cell, i) => {
         cell.innerHTML = '';
-        const char = padded[i];
-        if (char !== undefined && char !== ' ') {
+        if (displayStr[i] !== undefined) {
           cell.style.visibility = 'visible';
-          cell.appendChild(makeSVG(char));
+          cell.appendChild(makeSVG(displayStr[i]));
         } else {
           cell.style.visibility = 'hidden';
         }
       });
-      displayState.r2 = derived;
+      displayState.r2 = displayStr;
     };
 
     /* ------------------------------------------------------------------ */
@@ -1482,9 +1510,11 @@
           const entries = rawLog
             .map(entry => ({
               timestamp: entry.timestamp || new Date().toISOString(),
-              r1: String(entry.r1 || '').slice(0, 20),
+              r1: String(entry.r1 || '').slice(0, 30),
             }))
             .filter(entry => entry.r1.length > 0);
+
+          fileName = file.name || 'dsky.json';
 
           loadedLog = sortLog({
             log: entries,
@@ -1521,7 +1551,7 @@
         const blob = new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' });
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement('a');
-        a.href = url; a.download = 'dsky.json';
+        a.href = url; a.download = fileName;
         document.body.appendChild(a);
         a.click();
         setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
@@ -1536,6 +1566,7 @@
       dirty = false;
       constant = "779900009999";
       trail = '';
+      fileName = 'dsky.json';
       clearAllFields();
       renderR2();
       syncCompRedy();
@@ -1561,7 +1592,7 @@
       renderR1(entry.r1 || '');
       renderR2();
       currentEntry = entry;
-      refreshDirty();   /* back to green — nothing unsaved */
+      refreshDirty();   /* orange — entry loaded, nothing unsaved */
       syncOfflBtn();
       closePicker();
     };
@@ -1651,11 +1682,11 @@
     const commitNumpad = () => {
       if (numpadEntry.length === 0) { closeNumpad(); return; }
 
-      /* PROG field only accepts 1, 2, or 3 */
+      /* PROG field only accepts 1, 2, 3, or 4 */
       if (numpadTarget === 'prog') {
         const d = numpadEntry[0];
-        if (!['1','2','3'].includes(d)) { closeNumpad(); return; }
-        const padded = '0' + d;   /* always "01", "02", "03" */
+        if (!['1','2','3','4'].includes(d)) { closeNumpad(); return; }
+        const padded = '0' + d;   /* always "01", "02", "03", "04" */
         renderTwoDigits(progDigits, padded);
         displayState.prog = padded;
         closeNumpad();
@@ -1666,6 +1697,8 @@
           setTimeout(openConstantEditor, 220);
         } else if (padded === '03') {
           setTimeout(openPicker, 220);
+        } else if (padded === '04') {
+          setTimeout(openNewFilePrompt, 220);
         }
         return;
       }
@@ -1680,8 +1713,8 @@
 
       const tap = () => {
         if (numpadEntry.length >= 2) return;   /* 2-digit cap */
-        /* PROG only accepts 1, 2, 3 — reject other digits immediately */
-        if (numpadTarget === 'prog' && !['1','2','3'].includes(nk.dataset.nk)) return;
+        /* PROG only accepts 1, 2, 3, 4 — reject other digits immediately */
+        if (numpadTarget === 'prog' && !['1','2','3','4'].includes(nk.dataset.nk)) return;
         numpadEntry.push(nk.dataset.nk);
         updatePips();
         flash();
@@ -1724,8 +1757,8 @@
       if (e.key >= '0' && e.key <= '9') {
         e.preventDefault();
         if (numpadEntry.length >= 2) return;
-        /* PROG only accepts 1, 2, 3 */
-        if (numpadTarget === 'prog' && !['1','2','3'].includes(e.key)) return;
+        /* PROG only accepts 1, 2, 3, 4 */
+        if (numpadTarget === 'prog' && !['1','2','3','4'].includes(e.key)) return;
         const matchKey = sheet.querySelector(`.nk[data-nk="${e.key}"]`);
         if (matchKey) {
           matchKey.classList.add('is-pressed');
@@ -1756,12 +1789,23 @@
 
     /* ------------------------------------------------------------------ */
     /* R1 alpha sheet (opened automatically by PROG 01)                    */
+    /* Two fields — R1 A and R1 B — joined by a single space into R1       */
     /* ------------------------------------------------------------------ */
     const alphaSheet  = document.getElementById('alpha-sheet');
-    const alphaInput  = document.getElementById('alpha-input');
+    const alphaInputA = document.getElementById('alpha-input-a');
+    const alphaInputB = document.getElementById('alpha-input-b');
     const alphaDone   = document.getElementById('alpha-done');
     const alphaPips   = [0,1,2,3,4].map(i => document.getElementById('alpha-pip-' + i));
     const alphaTitle  = document.querySelector('.alpha-title');
+
+    /* Combined R1 value from the two fields (single space separator). */
+    const joinAlphaFields = () => {
+      const a = alphaInputA.value.trim();
+      const b = alphaInputB.value.trim();
+      if (a && b) return a + ' ' + b;
+      /* R1 B without R1 A is stored as the whole R1 so nothing is lost. */
+      return a || b;
+    };
 
     const updateAlphaPips = (val) => {
       alphaPips.forEach((pip, i) => {
@@ -1775,45 +1819,59 @@
       });
     };
 
+    /* Keep the two fields within the 30-character combined R1 limit. */
+    const syncAlphaCaps = () => {
+      if (alphaInputA.value.length > 30) {
+        alphaInputA.value = alphaInputA.value.slice(0, 30);
+      }
+      const roomForB = Math.max(0, 30 - (alphaInputA.value.length ? alphaInputA.value.length + 1 : 0));
+      if (alphaInputB.value.length > roomForB) {
+        alphaInputB.value = alphaInputB.value.slice(0, roomForB);
+      }
+      updateAlphaPips(joinAlphaFields());
+    };
+
     const openAlpha = () => {
-      /* Prefill with the currently displayed R1 (respects CLR). */
+      /* Prefill from the current R1 (respects CLR), split at first space. */
       const initial = displayState.r1 || '';
+      const sep = initial.indexOf(' ');
+      alphaInputA.value = sep === -1 ? initial : initial.slice(0, sep);
+      alphaInputB.value = sep === -1 ? '' : initial.slice(sep + 1);
       alphaTitle.textContent = 'R1';
-      alphaInput.value = initial;
-      updateAlphaPips(initial);
+      syncAlphaCaps();
       backdrop.classList.add('is-open');
       alphaSheet.classList.add('is-open');
       setTimeout(() => {
-        alphaInput.focus();
-        alphaInput.select();
+        alphaInputA.focus();
+        alphaInputA.select();
       }, 30);
     };
 
     const closeAlpha = () => {
-      alphaInput.blur();
+      alphaInputA.blur();
+      alphaInputB.blur();
       backdrop.classList.remove('is-open');
       alphaSheet.classList.remove('is-open');
     };
 
     const commitAlpha = () => {
-      const val = alphaInput.value.trim();
+      const val = joinAlphaFields().slice(0, 30);
       renderR1(val);
       renderR2();
       refreshDirty();
       closeAlpha();
     };
 
-    /* Keep pips in sync with every keystroke */
-    alphaInput.addEventListener('input', () => {
-      /* Enforce 20-char cap (maxlength alone isn't reliable on all iOS versions) */
-      if (alphaInput.value.length > 20) {
-        alphaInput.value = alphaInput.value.slice(0, 20);
-      }
-      updateAlphaPips(alphaInput.value);
+    /* Keep pips and the combined cap in sync with every keystroke */
+    [alphaInputA, alphaInputB].forEach(input => {
+      input.addEventListener('input', syncAlphaCaps);
     });
 
-    /* "Go" / "Return" on the software keyboard commits */
-    alphaInput.addEventListener('keydown', (e) => {
+    /* Return in R1 A moves to R1 B; Return in R1 B commits. */
+    alphaInputA.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); alphaInputB.focus(); }
+    });
+    alphaInputB.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); commitAlpha(); }
     });
 
@@ -1937,7 +1995,107 @@
       backdrop.addEventListener('pointerup', backdropHandler, { once: true });
     };
 
-    /* Tapping the backdrop dismisses without committing (alpha only) */
+    /* ------------------------------------------------------------------ */
+    /* New-file prompt (opened automatically by PROG 04)                   */
+    /* Creates an empty resident log under a user-supplied file name.      */
+    /* ------------------------------------------------------------------ */
+    const openNewFilePrompt = () => {
+      const modal = document.createElement('div');
+      modal.className = 'numpad-sheet';
+      modal.style.position = 'fixed';
+      modal.style.left = '0';
+      modal.style.right = '0';
+      modal.style.bottom = '0';
+      modal.style.zIndex = '102';
+      modal.style.background = '#d1d1d6';
+      modal.style.borderRadius = '13px 13px 0 0';
+      modal.style.boxShadow = '0 -2px 20px rgba(0,0,0,0.22)';
+      modal.style.padding = '0 0 env(safe-area-inset-bottom, 0px)';
+      modal.style.transform = 'translateY(100%)';
+      modal.style.transition = 'transform 320ms cubic-bezier(0.32, 0.72, 0, 1)';
+      modal.style.userSelect = 'none';
+      modal.style.touchAction = 'none';
+
+      modal.innerHTML = `
+        <div class="numpad-handle" aria-hidden="true"></div>
+        <div class="numpad-bar">
+          <span class="numpad-title">NEW FILE</span>
+          <button class="numpad-done" id="newfile-done" type="button">Create</button>
+        </div>
+        <div style="padding:0 20px 20px;">
+          <input class="alpha-input" id="newfile-input"
+                 style="margin:0;width:100%;"
+                 type="text" autocomplete="off"
+                 autocorrect="off" autocapitalize="none"
+                 spellcheck="false" maxlength="60"
+                 placeholder="File name"
+                 aria-label="New file name" />
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+      backdrop.classList.add('is-open');
+
+      setTimeout(() => {
+        modal.classList.add('is-open');
+        modal.style.transform = 'translateY(0)';
+      }, 10);
+
+      const input = document.getElementById('newfile-input');
+      const doneBtn = document.getElementById('newfile-done');
+
+      const closeNewFile = () => {
+        backdrop.classList.remove('is-open');
+        modal.style.transform = 'translateY(100%)';
+        modal.classList.remove('is-open');
+        setTimeout(() => modal.remove(), 320);
+      };
+
+      const createNewFile = () => {
+        let name = input.value.trim();
+        if (!name) name = 'dsky';
+        fileName = /\.json$/i.test(name) ? name : name + '.json';
+
+        /* Brand-new log: no entries, default constant and empty trail. */
+        loadedLog = { log: [], constant: "779900009999", trail: '' };
+        constant = loadedLog.constant;
+        trail = loadedLog.trail;
+        currentEntry = null;
+        dirty = false;
+        clearAllFields();
+        renderR2();
+        syncCompRedy();
+        syncOfflBtn();
+        closeNewFile();
+      };
+
+      input.value = 'dsky';
+      setTimeout(() => {
+        input.focus();
+        input.select();
+      }, 50);
+
+      doneBtn.addEventListener('click', createNewFile);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          createNewFile();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          closeNewFile();
+        }
+      });
+
+      const backdropHandler = (e) => {
+        if (modal.classList.contains('is-open')) {
+          e.stopPropagation();
+          closeNewFile();
+        }
+      };
+
+      backdrop.addEventListener('pointerup', backdropHandler, { once: true });
+    };
+
     backdrop.addEventListener('pointerup', () => {
       if (alphaSheet.classList.contains('is-open')) closeAlpha();
     });
@@ -1953,10 +2111,14 @@
         logArr = JSON.parse(JSON.stringify(loadedLog.log));
       }
 
-      const r1 = (displayState.r1 || '').trim().slice(0, 20);
+      const r1 = (displayState.r1 || '').trim().slice(0, 30);
       const oldTs = currentEntry ? currentEntry.timestamp : null;
       const idx = oldTs !== null ? logArr.findIndex(e => e.timestamp === oldTs) : -1;
-      let savedTs = null;
+
+      /* Nothing meaningful to save and no document resident: no-op. */
+      if (loadedLog === null && r1 === '' && constant === "779900009999" && trail === '') {
+        return;
+      }
 
       if (currentEntry !== null) {
         if (r1 === '') {
@@ -1964,24 +2126,22 @@
           if (idx !== -1) logArr.splice(idx, 1);
         } else {
           const updated = { timestamp: new Date().toISOString(), r1 };
-          savedTs = updated.timestamp;
           if (idx !== -1) logArr[idx] = updated;
           else logArr.push(updated);
         }
       } else if (r1 !== '') {
-        const added = { timestamp: new Date().toISOString(), r1 };
-        savedTs = added.timestamp;
-        logArr.push(added);
+        logArr.push({ timestamp: new Date().toISOString(), r1 });
       }
 
       /* Alphabetical by full R1 value, constant and trail at the bottom. */
       const log = sortLog({ log: logArr, constant, trail });
 
-      /* The saved log becomes the resident file; COMP REDY returns to green. */
+      /* The saved document stays resident, but the entry unloads so the next
+         SAVE creates a new entry instead of editing this one. */
       loadedLog = log;
-      currentEntry = savedTs ? (log.log.find(e => e.timestamp === savedTs) || null) : null;
+      currentEntry = null;
       dirty = false;
-      renderR1(r1);
+      renderR1('');
       renderR2();
       syncCompRedy();
       syncOfflBtn();
@@ -2017,10 +2177,12 @@
       const name = key.dataset.key;
 
       if (name === 'VERB') {
-        /* VERB copies R1 B — everything after the first space in R1 */
+        /* VERB copies R1 B — everything after the first space in R1.
+           When R1 B is empty, copy the literal marker *empty*. */
         const r1 = (displayState.r1 || '').trim();
         const sep = r1.indexOf(' ');
-        copyText(sep === -1 ? '' : r1.slice(sep + 1).trim());
+        const r1b = sep === -1 ? '' : r1.slice(sep + 1).trim();
+        copyText(r1b || '*empty*');
 
       } else if (name === 'NOUN') {
         /* NOUN copies: R1[0] uppercase + R1[1] lowercase + constant + trail */
@@ -2034,7 +2196,7 @@
         refreshDirty();
 
       } else if (name === 'PROG') {
-        /* Open numeric pad targeting the PROG display field (1, 2, or 3 only) */
+        /* Open numeric pad targeting the PROG display field (1–4 only) */
         openNumpad('prog');
 
       } else if (name === 'SAVE') {
