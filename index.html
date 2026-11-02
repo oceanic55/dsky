@@ -2191,8 +2191,9 @@
 
       } else if (name === 'CLR') {
         clearAllFields();
-        /* A cleared selected entry stays pending until SAVE removes it;
-           clearing an unsaved new entry simply discards it. */
+        /* Unload the displayed entry without changing the resident log.
+           PROG 01 edits entry contents; CLR only removes them from view. */
+        currentEntry = null;
         refreshDirty();
 
       } else if (name === 'PROG') {
