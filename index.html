@@ -836,10 +836,11 @@
     padding: 0 0 env(safe-area-inset-bottom, 0px);
     transform: translateY(100%);
     transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
-    touch-action: none;
+    touch-action: pan-y;
     max-height: 70vh;
     display: flex;
     flex-direction: column;
+    user-select: none;
   }
   .picker-sheet.is-open { transform: translateY(0); }
 
@@ -872,12 +873,23 @@
   }
   .picker-cancel:active { opacity: 0.5; }
 
-  /* Scrollable entry list */
+  /* Scrollable entry list — momentum scrolling, bounded by the sheet */
   .picker-list {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    flex: 1;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    flex: 1 1 auto;
+    min-height: 0;
     padding: 0 12px 12px;
+  }
+
+  /* Inset grouped list, matching an iOS list picker */
+  .picker-group {
+    background: #ffffff;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   }
 
   .picker-item {
@@ -885,36 +897,87 @@
     -webkit-appearance: none;
     border: none;
     width: 100%;
-    background: #ffffff;
-    border-radius: 10px;
-    margin-bottom: 8px;
-    padding: 14px 16px;
+    background: transparent;
+    border-radius: 0;
+    margin: 0;
+    padding: 13px 16px;
+    min-height: 44px;
     display: flex;
-    flex-direction: column;
-    gap: 3px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     cursor: pointer;
-    touch-action: manipulation;
+    touch-action: pan-y;
     -webkit-tap-highlight-color: transparent;
     text-align: left;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border-bottom: 0.5px solid rgba(60, 60, 67, 0.29);
     transition: background 80ms;
   }
+  .picker-item:last-child { border-bottom: none; }
   .picker-item:active { background: #e5e5ea; }
 
   .picker-item-r1 {
+    flex: 1;
+    min-width: 0;
     font-size: 17px;
-    font-weight: 500;
+    font-weight: 400;
+    line-height: 1.3;
     color: #1c1c1e;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
     font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
   }
+  .picker-check {
+    flex-shrink: 0;
+    width: 20px;
+    text-align: right;
+    font-size: 17px;
+    font-weight: 600;
+    color: #007aff;
+    opacity: 0;
+  }
+  .picker-item.is-selected .picker-check { opacity: 1; }
+  .picker-item.is-selected .picker-item-r1 { font-weight: 500; }
+
   .picker-empty {
     padding: 18px 16px;
     font-size: 15px;
     color: #8e8e93;
     text-align: center;
+    background: #ffffff;
+    border-radius: 10px;
   }
+
+  /* ================= Export sheet (OFFL) ================= */
+
+  .export-message {
+    margin: 4px 20px 0;
+    font-size: 15px;
+    line-height: 1.4;
+    color: #3c3c43;
+    text-align: center;
+  }
+  .export-actions {
+    padding: 16px 20px 20px;
+  }
+  .export-save {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    border: none;
+    border-radius: 12px;
+    background: #007aff;
+    color: #ffffff;
+    font-size: 17px;
+    font-weight: 600;
+    padding: 14px;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 80ms;
+  }
+  .export-save:active { background: #0062cc; }
 </style>
 </head>
 <body>
@@ -1179,6 +1242,29 @@
 
   </div>
 
+  <!-- ============================================================
+       Export sheet — opened by OFFL before the file is offloaded
+       In-app Save / Cancel choice, then the iOS share sheet lets the
+       user pick a destination ("Save to Files").
+       ============================================================ -->
+  <div class="numpad-sheet" id="export-sheet"
+       role="dialog" aria-modal="true" aria-label="Save file">
+
+    <div class="numpad-handle" aria-hidden="true"></div>
+
+    <div class="numpad-bar">
+      <span class="numpad-title">SAVE FILE</span>
+      <button class="numpad-done" id="export-cancel" type="button">Cancel</button>
+    </div>
+
+    <p class="export-message" id="export-message">Save “dsky.json”?</p>
+
+    <div class="export-actions">
+      <button class="export-save" id="export-save" type="button">Save</button>
+    </div>
+
+  </div>
+
 <script>
   (() => {
     /* ------------------------------------------------------------------ */
@@ -1291,9 +1377,13 @@
     };
 
     /* ------------------------------------------------------------------ */
-    /* Block all touch gestures that could pan or zoom the page            */
+    /* Block page pan/zoom touch gestures, except inside the picker list.  */
+    /* Without this exemption iOS cannot scroll PROG 03's entries.         */
     /* ------------------------------------------------------------------ */
-    document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('touchmove', (e) => {
+      if (e.target.closest && e.target.closest('.picker-list')) return;
+      e.preventDefault();
+    }, { passive: false });
     document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
     document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
 
@@ -1353,6 +1443,10 @@
     const pickerSheet  = document.getElementById('picker-sheet');
     const pickerList   = document.getElementById('picker-list');
     const pickerCancel = document.getElementById('picker-cancel');
+    const exportSheet  = document.getElementById('export-sheet');
+    const exportMessage = document.getElementById('export-message');
+    const exportSave   = document.getElementById('export-save');
+    const exportCancel = document.getElementById('export-cancel');
 
     /* ------------------------------------------------------------------ */
     /* Display state — single source of truth for all field values         */
@@ -1374,6 +1468,9 @@
 
     /* Name used when the resident log is offloaded as a file */
     let fileName = 'dsky.json';
+
+    /* Resident log waiting on the export sheet's Save / Cancel choice */
+    let pendingExportLog = null;
 
     /* ------------------------------------------------------------------ */
     /* Message state management                                            */
@@ -1663,10 +1760,20 @@
     });
 
     /* ------------------------------------------------------------------ */
-    /* Offload the resident log as dsky.json (used by the OFFL key)        */
+    /* Offload the resident log (used by the OFFL key)                     */
     /* SAVE never triggers this — only the explicit offload does.           */
+    /* An in-app sheet offers Save / Cancel before anything leaves the app. */
     /* ------------------------------------------------------------------ */
-    const downloadJSON = (log) => {
+    const buildExportFile = (log) => {
+      if (typeof File !== 'function') return null;
+      try {
+        return new File([JSON.stringify(log, null, 2)], fileName, { type: 'application/json' });
+      } catch (_) {
+        return null;
+      }
+    };
+
+    const triggerAnchorDownload = (log) => {
       try {
         const blob = new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' });
         const url  = URL.createObjectURL(blob);
@@ -1678,9 +1785,14 @@
       } catch (_) {}
     };
 
+    const closeExportSheet = () => {
+      backdrop.classList.remove('is-open');
+      exportSheet.classList.remove('is-open');
+      pendingExportLog = null;
+    };
+
     const unloadFile = () => {
-      /* Offload the last saved resident log, then unload it from the app. */
-      if (loadedLog) downloadJSON(loadedLog);
+      /* Unload the resident log after it has been offloaded. */
       loadedLog = null;
       currentEntry = null;
       dirty = false;
@@ -1693,6 +1805,48 @@
       syncOfflBtn();
       updateMessage('NO_FILE');
     };
+
+    const openExportSheet = (log) => {
+      pendingExportLog = log;
+      exportMessage.textContent = 'Save “' + fileName + '”? You can choose where to save it next.';
+      backdrop.classList.add('is-open');
+      exportSheet.classList.add('is-open');
+    };
+
+    const performExport = async () => {
+      const log = pendingExportLog;
+      if (!log) { closeExportSheet(); return; }
+
+      const file = buildExportFile(log);
+      closeExportSheet();
+
+      /* The iOS share sheet includes "Save to Files", so the user can pick a
+         destination instead of accepting Safari's default Downloads folder.
+         Cancelling the share sheet keeps the document resident. */
+      let canShareFiles = false;
+      try {
+        canShareFiles = !!(file && navigator.canShare && navigator.canShare({ files: [file] }));
+      } catch (_) {}
+
+      if (canShareFiles) {
+        try {
+          await navigator.share({ files: [file], title: fileName });
+          unloadFile();
+          return;
+        } catch (error) {
+          if (error && error.name === 'AbortError') return;
+        }
+      }
+
+      triggerAnchorDownload(log);
+      unloadFile();
+    };
+
+    exportSave.addEventListener('click', performExport);
+    exportCancel.addEventListener('click', closeExportSheet);
+    backdrop.addEventListener('pointerup', () => {
+      if (exportSheet.classList.contains('is-open')) closeExportSheet();
+    });
 
     /* Set initial OFFL/LOAD and COMP REDY state (no file = LOAD, dark) */
     syncOfflBtn();
@@ -1737,22 +1891,53 @@
         return;
       }
 
+      /* Grouped list, matching an iOS list picker: predictable alphabetical
+         order, one row per entry, a checkmark on the loaded entry. */
+      const group = document.createElement('div');
+      group.className = 'picker-group';
+      group.setAttribute('role', 'listbox');
+      group.setAttribute('aria-label', 'Entries');
+
       const entries = [...loadedLog.log].sort(compareEntries);
       entries.forEach((entry) => {
         const btn = document.createElement('button');
         btn.className = 'picker-item';
         btn.type = 'button';
+        btn.setAttribute('role', 'option');
         btn.setAttribute('aria-label', entry.r1);
+
+        const isSelected = currentEntry !== null &&
+          entry.timestamp === currentEntry.timestamp;
+        if (isSelected) btn.classList.add('is-selected');
+        btn.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+
         const label = document.createElement('span');
         label.className = 'picker-item-r1';
         label.textContent = entry.r1;   /* full R1 A + R1 B, nothing else */
-        btn.appendChild(label);
-        btn.addEventListener('pointerup', () => selectEntry(entry));
-        btn.addEventListener('click',     () => selectEntry(entry));
-        pickerList.appendChild(btn);
+
+        const check = document.createElement('span');
+        check.className = 'picker-check';
+        check.setAttribute('aria-hidden', 'true');
+        check.textContent = '✓';
+
+        btn.append(label, check);
+        btn.addEventListener('click', () => selectEntry(entry));
+        group.appendChild(btn);
       });
+
+      pickerList.appendChild(group);
       backdrop.classList.add('is-open');
       pickerSheet.classList.add('is-open');
+
+      /* Keep the loaded entry visible when the list opens. */
+      requestAnimationFrame(() => {
+        const selected = pickerList.querySelector('.picker-item.is-selected');
+        if (!selected) return;
+        const listRect = pickerList.getBoundingClientRect();
+        const rowRect  = selected.getBoundingClientRect();
+        pickerList.scrollTop += rowRect.top - listRect.top -
+          (pickerList.clientHeight - rowRect.height) / 2;
+      });
     };
 
     pickerCancel.addEventListener('click', closePicker);
@@ -2342,9 +2527,9 @@
         saveCurrent();
 
       } else if (name === 'ENTR') {
-        /* OFFL unloads the resident file; LOAD opens the file picker. */
+        /* OFFL asks Save / Cancel before offloading; LOAD opens the file picker. */
         if (loadedLog !== null) {
-          unloadFile();
+          openExportSheet(loadedLog);
         } else {
           loadInput.click();
         }
