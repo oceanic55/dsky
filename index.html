@@ -60,6 +60,10 @@
     align-items: center;
     justify-content: center;
     touch-action: none;          /* block pan & pinch-zoom at the body level */
+    /* Push content up above Safari's floating bottom toolbar.
+       env(safe-area-inset-bottom) is non-zero only when viewport-fit=cover
+       is set (which it is), so this is a no-op on any other browser. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   /* Single centred column — no right panel */
