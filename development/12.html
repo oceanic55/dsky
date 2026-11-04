@@ -1,0 +1,2631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>AGC DSKY Mini</title>
+<style>
+  /* ============================================================
+     DSKY display panel + 3×2 keypad
+     Mobile-first: fits iPhone 13 (390 × 844 pt) in Safari without
+     overflow, bounce-scroll, or user zoom.
+     ============================================================ */
+
+  :root {
+    /*
+      Stage is 274 × 561 pt (intrinsic app points).
+      Scale so the stage width fills the viewport with 20 pt side
+      padding on each side: --s = (100vw - 40px) / 274px
+      min() keeps it ≤ 1.0 on larger screens so it never blows up.
+      On iPhone 13 (390px wide): (390-40)/274 ≈ 1.277
+    */
+    --s: min(1.0, calc((100vw - 40px) / 274px));
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    /* Prevent any scrolling / rubber-band bounce outside the panel */
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: auto;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                 "Helvetica Neue", Arial, sans-serif;
+    color: #292931;
+    background: radial-gradient(circle at 50% 0%, #dedde0 0%, #d4d3d5 45%, #c2c1c5 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    /* Safe-area insets for notch / home-bar on iPhone */
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+             env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    touch-action: none;          /* block pan & pinch-zoom at the body level */
+  }
+
+  /* Single centred column — no right panel */
+  .page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ---------------- Panel wrapper (holds panel + corner screws) ---------- */
+  .panel-wrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* allow absolutely-positioned screws to extend outside panel bounds */
+    overflow: visible;
+  }
+
+  /* Top screws — on the grey background, flanking the display at its top level */
+  .panel-screw {
+    position: absolute;
+    width: calc(22px * var(--s));
+    height: calc(22px * var(--s));
+    border-radius: 50%;
+    overflow: hidden;
+    pointer-events: none;
+    box-shadow: 0 1.1px 2.2px rgba(0, 0, 0, 0.35);
+    /* Vertically: inside the panel's top padding, level with display top */
+    top: calc(21px * var(--s));
+    z-index: 10;
+  }
+  .panel-screw img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform-origin: 50% 50%;
+  }
+  /* Horizontally: match the keypad screw positions (panel padding = 40px each side) */
+  .panel-screw.tl { left:  calc(40px * var(--s)); }
+  .panel-screw.tr { right: calc(40px * var(--s)); }
+
+  /* ---------------- Panel bezel ---------------- */
+  .panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: calc(18px * var(--s));
+    padding: calc(32px * var(--s)) calc(40px * var(--s)) calc(26px * var(--s));
+    border-radius: calc(14px * var(--s));
+    background: linear-gradient(180deg, #d4d3d5 0%, #c2c1c5 100%);
+    border: 1px solid #77777b;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,.55) inset,
+      0 18px 40px rgba(0,0,0,.22),
+      0 2px 6px rgba(0,0,0,.18);
+    /* Prevent the panel itself from being scrolled or overflowing */
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  .caption {
+    font-size: calc(11px * var(--s));
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: #77777b;
+    user-select: none;
+    text-align: center;
+    white-space: nowrap;
+    /* Prevent caption from stretching panel-wrap wider than the panel content */
+    max-width: calc(274px * var(--s));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    
+    /* Add transitions for smooth state changes */
+    transition: color 0.3s ease, opacity 0.3s ease;
+  }
+
+  /* Optional: Add visual feedback for different message states */
+  .caption[data-state="error"] {
+    color: #ff6b6b; /* Red for errors */
+  }
+
+  .caption[data-state="success"] {
+    color: #35d39a; /* Mint green for success */
+  }
+
+  .caption[data-state="warning"] {
+    color: #ffa726; /* Orange for warnings */
+  }
+
+  .caption[data-state="info"] {
+    color: #77777b; /* Original color for info */
+  }
+
+  /* ---------------- Scaled stage (uniform, like the app) ---------------- */
+  .viewport {
+    position: relative;
+    width: calc(274px * var(--s));
+    height: calc(561px * var(--s));
+    flex: 0 0 auto;
+    overflow: hidden;
+  }
+
+  .stage {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 274px;
+    height: 561px;
+    transform: scale(var(--s));
+    transform-origin: top left;
+  }
+
+  .board {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 25px;
+  }
+
+  /* ================= Display panel ================= */
+  .display {
+    position: relative;
+    width: 201px;
+    height: 341px;
+  }
+
+  .bezel {
+    position: absolute;
+    inset: 0;
+    border-radius: 9px;
+    background: #b8b7bb;
+    box-shadow: inset 0 0 0 4px #29292e;
+  }
+
+  .screen {
+    position: absolute;
+    left: 6px;
+    top: 6px;
+    width: 189px;
+    height: 329px;
+    border-radius: 5px;
+    background: linear-gradient(180deg, #555342 0%, #77765a 100%);
+    overflow: hidden;
+  }
+  .screen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 5px;
+    box-shadow: inset 0 0 0 4px #262622;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .comp-acty {
+    position: absolute;
+    left: 7px;
+    top: 7px;
+    width: 70px;
+    height: 70px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 10.08px;
+    font-weight: 700;
+    line-height: 12px;
+    color: #9fb3a4;              /* light text readable on dark background */
+    /* off state — transparent, blends into the screen */
+    background: transparent;
+    transition: background 200ms ease, box-shadow 200ms ease;
+  }
+
+  /* COMP REDY lit — full green square, text stays readable */
+  .comp-acty.is-ready {
+    background: #35d39a;
+    box-shadow: 0 0 10px 3px rgba(53, 211, 154, 0.6);
+    color: #101b16;
+  }
+
+  /* COMP REDY entry-loaded — orange: an entry is displayed but unchanged */
+  .comp-acty.is-entry {
+    background: #ff9f0a;
+    box-shadow: 0 0 10px 3px rgba(255, 159, 10, 0.6);
+    color: #241a00;
+  }
+
+  /* COMP REDY dirty — unsaved entry/constant changes */
+  .comp-acty.is-dirty {
+    background: #e02b2b;
+    box-shadow: 0 0 10px 3px rgba(224, 43, 43, 0.6);
+    color: #fff5f5;
+  }
+
+  .dot {
+    position: absolute;
+    left: 91px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #e7e5dc;
+  }
+  .dot::after {
+    content: "";
+    position: absolute;
+    inset: 30%;
+    border-radius: 50%;
+    background: #fffdf5;
+  }
+  .dot.d1 { top: 12px; }
+  .dot.d2 { top: 76px; }
+  .dot.d3 { top: 139px; }
+
+  .two-digit {
+    position: absolute;
+    width: 59.5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .two-digit.prog { left: 118px; top: 6px; }
+  .two-digit.verb { left: 14px;  top: 86px; }
+  .two-digit.noun { left: 108px; top: 86px; }
+
+  .pill {
+    width: 59.5px;
+    padding: 1.5px 0;
+    border-radius: 1.5px;
+    background: #35d39a;
+    color: #101b16;
+    font-size: 7.5px;
+    font-weight: 700;
+    line-height: 9px;
+    letter-spacing: 0.5px;
+    text-align: center;
+  }
+
+  .digits {
+    margin-top: 2px;
+    padding: 2px 3px;
+    display: flex;
+    gap: 1.5px;
+  }
+  .digit {
+    width: 26px;
+    height: 30px;
+    overflow: hidden;
+  }
+  .digit svg {
+    display: block;
+    width: 26px;
+    height: 30px;
+  }
+  .seg { fill: #35d39a; }
+
+  .sep {
+    position: absolute;
+    left: 8px;
+    width: 173px;
+    height: 1.4px;
+    border-radius: 0.7px;
+    background: #35d39a;
+  }
+  .sep.s1 { top: 148px; }
+  .sep.s2 { top: 204px; }
+  .sep.s3 { top: 260px; }
+
+  .reg-row {
+    position: absolute;
+    left: 8px;
+    display: flex;
+    align-items: center;
+    gap: 1px;
+  }
+  .reg-row.r1 { top: 153px; }
+  .reg-row.r2 { top: 208px; }
+  .reg-row.r3 { top: 263px; }
+
+  .reg-label {
+    width: 8px;
+    font-size: 7px;
+    font-weight: 700;
+    text-align: center;
+    color: #9fb3a4;
+  }
+
+  .reg {
+    display: flex;
+    align-items: center;
+    gap: 1.5px;
+    padding: 3px 0px;
+    height: 36px;
+  }
+  .reg-cell {
+    height: 30px;
+    width: 26px;
+  }
+  .reg-cell.sign { width: 12.1px; }
+
+  /* ================= Keypad ================= */
+  .keypad {
+    position: relative;
+    padding: 26px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 68px);
+    grid-auto-rows: 68px;
+    gap: 7px 9px;
+    justify-items: center;
+    align-items: center;
+  }
+
+  .screw {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    overflow: hidden;
+    pointer-events: none;
+    box-shadow: 0 1.1px 2.2px rgba(0, 0, 0, 0.35);
+  }
+  .screw img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: rotate(var(--slot, 0deg)) scale(1.14);
+    transform-origin: 50% 50%;
+  }
+  .screw.tl { left:  0; top:    0; --slot: -28deg; }
+  .screw.tr { right: 0; top:    0; --slot:  74deg; }
+  .screw.bl { left:  0; bottom: 0; --slot:  35deg; }
+  .screw.br { right: 0; bottom: 0; --slot: -12deg; }
+
+  /* ---------------- Keys ---------------- */
+  .k {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    outline: none;
+
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: var(--w);
+    height: 68px;
+    border-radius: calc(var(--w) * 0.075);
+
+    transform: scale(1);
+    transition: transform 70ms ease-out, box-shadow 70ms ease-out;
+    box-shadow: 0 calc(var(--w) * 0.04) calc(var(--w) * 0.05) rgba(0,0,0,.65);
+  }
+
+  .k.verb, .k.noun { --w: 68px; }
+  .k.clr,  .k.stby { --w: 65px; }
+  .k.entr, .k.rset { --w: 64px; }
+
+  .k.verb, .k.noun {
+    --c1: #0a1e0a;
+    --c2: rgba(10, 30, 10, 0.6);
+    --p1: rgba(10, 30, 10, 0.6);
+    --p2: rgba(10, 30, 10, 0.36);
+  }
+  .k.clr, .k.stby {
+    --c1: #101015;
+    --c2: #030306;
+    --p1: rgba(16, 16, 21, 0.6);
+    --p2: rgba(3, 3, 6, 0.6);
+  }
+
+  /* OFFL/LOAD key in LOAD mode — blue tint to signal load state */
+  .k.entr.is-load {
+    --c1: #0a1528;
+    --c2: #050a14;
+    --p1: rgba(10, 21, 40, 0.7);
+    --p2: rgba(5, 10, 20, 0.7);
+  }
+  .k.entr, .k.rset {
+    --c1: #1e0a0a;
+    --c2: rgba(30, 10, 10, 0.6);
+    --p1: rgba(30, 10, 10, 0.6);
+    --p2: rgba(30, 10, 10, 0.36);
+  }
+
+  .k .key-face {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(180deg, var(--c1), var(--c2));
+    border: calc(var(--w) * 0.045) solid #24242a;
+  }
+
+  .k .key-face::before {
+    content: "";
+    position: absolute;
+    inset: calc(var(--w) * 0.06);
+    border-radius: calc(var(--w) * 0.052);
+    border: 0.5px solid #08080b;
+  }
+
+  .k .key-bevel {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.09) 0%,
+      rgba(255, 255, 255, 0) 40%
+    );
+    pointer-events: none;
+  }
+
+  .k .key-label {
+    position: relative;
+    font-size: calc(var(--w) * 0.21);
+    font-weight: 700;
+    line-height: 1;
+    color: #e1e0dc;
+    letter-spacing: 0.01em;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .k.is-pressed {
+    transform: scale(0.93);
+    box-shadow: 0 0 calc(var(--w) * 0.05) rgba(0,0,0,.65);
+  }
+  .k.is-pressed .key-face {
+    background: linear-gradient(180deg, var(--p1), var(--p2));
+  }
+  .k.is-pressed .key-bevel {
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.03) 0%,
+      rgba(255, 255, 255, 0) 40%
+    );
+  }
+
+  .k:focus-visible {
+    box-shadow:
+      0 calc(var(--w) * 0.04) calc(var(--w) * 0.05) rgba(0,0,0,.65),
+      0 0 0 2px rgba(53, 211, 154, 0.55);
+  }
+
+  /* SAVE key shares the red keycap tint with the base RSET styling above */
+
+  /* Full-screen backdrop — blurs content behind, dims slightly */
+  .numpad-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 260ms ease;
+  }
+  .numpad-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Sheet — slides up from bottom */
+  .numpad-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 101;
+    background: #d1d1d6;           /* iOS system grouped background */
+    border-radius: 13px 13px 0 0;
+    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.22);
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+    transform: translateY(100%);
+    transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+    user-select: none;
+    touch-action: none;
+  }
+  .numpad-sheet.is-open {
+    transform: translateY(0);
+  }
+
+  /* Drag handle pill */
+  .numpad-handle {
+    width: 36px;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(60, 60, 67, 0.3);
+    margin: 8px auto 0;
+  }
+
+  /* Top bar: title + Done */
+  .numpad-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 20px 2px;
+  }
+  .numpad-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #3c3c43;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .numpad-done {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: none;
+    font-size: 17px;
+    font-weight: 600;
+    color: #007aff;               /* iOS blue */
+    cursor: pointer;
+    padding: 4px 0 4px 16px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .numpad-done:active { opacity: 0.5; }
+
+  /* Entry preview — shows the digits typed so far */
+  .numpad-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 20px 10px;
+  }
+  .numpad-pip {
+    width: 44px;
+    height: 52px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.72);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    font-weight: 300;
+    color: #1c1c1e;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -1px;
+    transition: background 120ms;
+  }
+  .numpad-pip.has-digit {
+    background: #ffffff;
+    color: #007aff;
+    font-weight: 400;
+  }
+
+  /* Key grid */
+  .numpad-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 4px 12px 12px;
+  }
+
+  /* Individual numpad key */
+  .nk {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+    user-select: none;
+
+    /* Sizing */
+    height: 56px;
+    border-radius: 10px;
+
+    /* iOS default key look */
+    background: #ffffff;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.22), inset 0 0.5px 0 rgba(255,255,255,0.9);
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+
+    transition: background 60ms, transform 60ms;
+  }
+  .nk:active,
+  .nk.is-pressed {
+    background: #aeb0b5;           /* iOS pressed key colour */
+    transform: scale(0.96);
+    box-shadow: 0 0 0 rgba(0,0,0,0.1);
+  }
+
+  /* Digit (large) and sub-label (small, like "ABC") */
+  .nk-digit {
+    font-size: 26px;
+    font-weight: 400;
+    line-height: 1;
+    color: #1c1c1e;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Backspace key */
+  .nk.backspace {
+    background: #aeb5bd;
+  }
+  .nk.backspace:active,
+  .nk.backspace.is-pressed {
+    background: #8e9198;
+  }
+
+  /* Empty placeholder (spans nothing) */
+  .nk.phantom {
+    background: transparent;
+    box-shadow: none;
+    pointer-events: none;
+  }
+
+  /* Hidden input to capture physical keyboard for numpad sheet */
+  .numpad-input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 1px;
+    height: 1px;
+    left: 0;
+    top: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 16px;
+  }
+
+  /* ================= Alpha sheet (PROG 01 — R1 entry) ================= */
+
+  .alpha-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 101;
+    background: #d1d1d6;
+    border-radius: 13px 13px 0 0;
+    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.22);
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+    transform: translateY(100%);
+    transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+    user-select: none;
+    touch-action: none;
+  }
+  .alpha-sheet.is-open {
+    transform: translateY(0);
+  }
+
+  /* Top bar mirrors numpad sheet */
+  .alpha-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px 6px;
+  }
+  .alpha-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #3c3c43;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .alpha-done {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: none;
+    font-size: 17px;
+    font-weight: 600;
+    color: #007aff;
+    cursor: pointer;
+    padding: 4px 0 4px 16px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .alpha-done:active { opacity: 0.5; }
+
+  /* Live preview pips — up to 5 chars */
+  .alpha-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 4px 20px 16px;
+  }
+  .alpha-pip {
+    width: 40px;
+    height: 48px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.72);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 300;
+    color: #1c1c1e;
+    font-variant-numeric: tabular-nums;
+    transition: background 120ms;
+  }
+  .alpha-pip.has-char {
+    background: #ffffff;
+    color: #007aff;
+    font-weight: 400;
+  }
+
+  /* Two-field stack (R1 A / R1 B) inside the alpha sheet */
+  .alpha-fields {
+    padding: 0 20px 8px;
+  }
+  .alpha-field-label {
+    display: block;
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #3c3c43;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .alpha-fields .alpha-input {
+    width: 100%;
+    margin: 0 0 14px;
+  }
+  .alpha-fields .alpha-input:last-of-type {
+    margin-bottom: 4px;
+  }
+
+  /* The text field — visible, tappable, summons OS keyboard on tap */
+  .alpha-input {
+    display: block;
+    width: calc(100% - 40px);
+    margin: 0 20px 16px;
+    padding: 13px 14px;
+    border-radius: 10px;
+    border: none;
+    outline: none;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.14);
+    font-size: 20px;          /* ≥16px prevents iOS auto-zoom */
+    font-weight: 400;
+    color: #007aff;
+    letter-spacing: 0.04em;
+    text-transform: none;
+    text-align: center;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    caret-color: #007aff;
+  }
+  .alpha-input::placeholder {
+    color: #c7c7cc;
+    letter-spacing: 0;
+    font-weight: 300;
+  }
+  /* ================= Entry picker sheet (PROG 03) ================= */
+
+  .picker-sheet {
+    position: fixed;
+    left: 50%;
+    right: auto;
+    bottom: 0;
+    z-index: 101;
+    /* Keep the drawer aligned with the DSKY panel instead of the whole
+       desktop viewport. The panel is wider than the stage: 274 px stage +
+       2 × 40 px side padding + 2 px border. 20% extra width keeps typical
+       R1 entries on one line. On mobile the stage is nearly full-width,
+       so this remains close to the previous appearance. */
+    width: 100%;
+    max-width: calc(427px * var(--s));
+    background: #d1d1d6;
+    border-radius: 13px 13px 0 0;
+    box-shadow: 0 -2px 20px rgba(0,0,0,0.22);
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+    transform: translate(-50%, 100%);
+    transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+    touch-action: pan-y;
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+  .picker-sheet.is-open { transform: translate(-50%, 0); }
+
+  .picker-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px 8px;
+    flex-shrink: 0;
+  }
+  .picker-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #3c3c43;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .picker-cancel {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: none;
+    font-size: 17px;
+    font-weight: 400;
+    color: #007aff;
+    cursor: pointer;
+    padding: 4px 0 4px 16px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .picker-cancel:active { opacity: 0.5; }
+
+  /* Scrollable entry list — momentum scrolling, bounded by the sheet */
+  .picker-list {
+    overflow-y: auto;
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* legacy Edge / IE */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 0 12px 12px;
+  }
+  /* Hide the scrollbar but keep the list scrollable */
+  .picker-list::-webkit-scrollbar { display: none; }
+
+  /* Inset grouped list, matching an iOS list picker */
+  .picker-group {
+    background: #ffffff;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  .picker-item {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    width: 100%;
+    background: transparent;
+    border-radius: 0;
+    margin: 0;
+    padding: 13px 16px;
+    min-height: 44px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    touch-action: pan-y;
+    -webkit-tap-highlight-color: transparent;
+    text-align: left;
+    border-bottom: 0.5px solid rgba(60, 60, 67, 0.29);
+    transition: background 80ms;
+  }
+  .picker-item:last-child { border-bottom: none; }
+  .picker-item:active { background: #e5e5ea; }
+
+  .picker-item-r1 {
+    flex: 1;
+    min-width: 0;
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 1.3;
+    color: #1c1c1e;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .picker-check {
+    flex-shrink: 0;
+    width: 20px;
+    text-align: right;
+    font-size: 17px;
+    font-weight: 600;
+    color: #007aff;
+    opacity: 0;
+  }
+  .picker-item.is-selected .picker-check { opacity: 1; }
+  .picker-item.is-selected .picker-item-r1 { font-weight: 500; }
+
+  .picker-empty {
+    padding: 18px 16px;
+    font-size: 15px;
+    color: #8e8e93;
+    text-align: center;
+    background: #ffffff;
+    border-radius: 10px;
+  }
+
+  /* ================= Export sheet (OFFL) ================= */
+
+  .export-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 8px 20px 20px;
+  }
+  .export-save,
+  .export-offload,
+  .export-cancel {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    border: none;
+    border-radius: 12px;
+    background: #007aff;
+    color: #ffffff;
+    font-size: 17px;
+    font-weight: 600;
+    padding: 14px;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 80ms;
+  }
+  .export-offload {
+    background: #434242;
+  }
+  .export-cancel {
+    background: #E4DDDD;
+    color: #000000;
+  }
+  .export-save {
+    background: #34d39a;
+  }
+  .export-save:active { background: #28b882; }
+  .export-offload:active { background: #2e2d2d; }
+  .export-cancel:active { background: #cec7c7; }
+</style>
+</head>
+<body>
+
+  <div class="page">
+
+    <div class="panel-wrap">
+      <span class="panel-screw tl" aria-hidden="true"><img src="img/screw.png" alt="" style="transform:rotate(-28deg) scale(1.14)"></span>
+      <span class="panel-screw tr" aria-hidden="true"><img src="img/screw.png" alt="" style="transform:rotate(74deg) scale(1.14)"></span>
+
+    <main class="panel">
+      <div class="viewport">
+        <div class="stage">
+          <div class="board">
+
+            <!-- Display panel -->
+            <div class="display" role="img"
+                 aria-label="DSKY display: all fields blank">
+              <div class="bezel"></div>
+              <div class="screen">
+
+                <div class="comp-acty" id="comp-redy"><span>COMP</span><span>REDY</span></div>
+
+                <span class="dot d1"></span>
+                <span class="dot d2"></span>
+                <span class="dot d3"></span>
+
+                <!-- PROG (digits populated via numpad when STBY pressed) -->
+                <div class="two-digit prog" id="prog-display">
+                  <div class="pill">PROG</div>
+                  <div class="digits" id="prog-digits">
+                    <div class="digit" style="visibility:hidden"></div>
+                    <div class="digit" style="visibility:hidden"></div>
+                  </div>
+                </div>
+
+                <!-- VERB (blank on load) -->
+                <div class="two-digit verb" id="verb-display">
+                  <div class="pill">VERB</div>
+                  <div class="digits">
+                    <div class="digit"></div>
+                    <div class="digit"></div>
+                  </div>
+                </div>
+
+                <!-- NOUN (blank on load) -->
+                <div class="two-digit noun" id="noun-display">
+                  <div class="pill">NOUN</div>
+                  <div class="digits">
+                    <div class="digit"></div>
+                    <div class="digit"></div>
+                  </div>
+                </div>
+
+                <span class="sep s1"></span>
+                <span class="sep s2"></span>
+                <span class="sep s3"></span>
+
+                <div class="reg-row r1" id="r1-row">
+                  <span class="reg-label">R1</span>
+                  <div class="reg">
+                    <span class="reg-cell sign"></span>
+                    <span class="reg-cell"></span><span class="reg-cell"></span>
+                    <span class="reg-cell"></span><span class="reg-cell"></span>
+                    <span class="reg-cell"></span>
+                  </div>
+                </div>
+
+                <div class="reg-row r2" id="r2-row">
+                  <span class="reg-label">R2</span>
+                  <div class="reg">
+                    <span class="reg-cell sign"></span>
+                    <span class="reg-cell"></span><span class="reg-cell"></span>
+                    <span class="reg-cell"></span><span class="reg-cell"></span>
+                    <span class="reg-cell"></span>
+                  </div>
+                </div>
+
+                <div class="reg-row r3" id="r3-row">
+                  <span class="reg-label">R3</span>
+                  <div class="reg">
+                    <span class="reg-cell sign"></span>
+                    <span class="reg-cell"></span><span class="reg-cell"></span>
+                    <span class="reg-cell"></span><span class="reg-cell"></span>
+                    <span class="reg-cell"></span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Keypad 3 × 2 -->
+            <div class="keypad">
+
+              <div class="grid">
+                <button class="k verb" type="button" data-key="VERB" data-sound="5" aria-label="VERB">
+                  <span class="key-face" aria-hidden="true"></span>
+                  <span class="key-bevel" aria-hidden="true"></span>
+                  <span class="key-label">VERB</span>
+                </button>
+                <button class="k clr" type="button" data-key="CLR" data-sound="5" aria-label="CLR">
+                  <span class="key-face" aria-hidden="true"></span>
+                  <span class="key-bevel" aria-hidden="true"></span>
+                  <span class="key-label">CLR</span>
+                </button>
+                <button class="k entr" type="button" data-key="ENTR" data-sound="7" aria-label="LOAD">
+                  <span class="key-face" aria-hidden="true"></span>
+                  <span class="key-bevel" aria-hidden="true"></span>
+                  <span class="key-label">LOAD</span>
+                </button>
+                <button class="k noun" type="button" data-key="NOUN" data-sound="5" aria-label="NOUN">
+                  <span class="key-face" aria-hidden="true"></span>
+                  <span class="key-bevel" aria-hidden="true"></span>
+                  <span class="key-label">NOUN</span>
+                </button>
+                <button class="k stby" type="button" data-key="PROG" data-sound="5" aria-label="PROG">
+                  <span class="key-face" aria-hidden="true"></span>
+                  <span class="key-bevel" aria-hidden="true"></span>
+                  <span class="key-label">PROG</span>
+                </button>
+                <button class="k rset" type="button" data-key="SAVE" data-sound="5" aria-label="SAVE">
+                  <span class="key-face" aria-hidden="true"></span>
+                  <span class="key-bevel" aria-hidden="true"></span>
+                  <span class="key-label">SAVE</span>
+                </button>
+              </div>
+
+              <span class="screw tl" aria-hidden="true"><img src="img/screw.png" alt=""></span>
+              <span class="screw tr" aria-hidden="true"><img src="img/screw.png" alt=""></span>
+              <span class="screw bl" aria-hidden="true"><img src="img/screw.png" alt=""></span>
+              <span class="screw br" aria-hidden="true"><img src="img/screw.png" alt=""></span>
+
+            </div>
+
+          </div>
+        </div>
+      </div>
+      <span class="caption">PROG VN R1 R2 R3 · N01 21:07</span>
+    </main>
+    </div><!-- /.panel-wrap -->
+
+  </div>
+
+  <!-- Hidden file input for LOAD -->
+  <input type="file" id="load-input" accept=".json,application/json"
+         style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;"
+         aria-hidden="true" tabindex="-1" />
+
+  <!-- ============================================================
+       Numeric pad sheet — shown when PROG key is pressed
+       iOS HIG: backdrop + bottom sheet, 3-col numpad, 2-digit cap
+       ============================================================ -->
+  <div class="numpad-backdrop" id="numpad-backdrop" role="presentation"></div>
+
+  <div class="numpad-sheet" id="numpad-sheet"
+       role="dialog" aria-modal="true" aria-label="Enter PROG code">
+
+    <div class="numpad-handle" aria-hidden="true"></div>
+
+    <div class="numpad-bar">
+      <span class="numpad-title">PROG</span>
+      <button class="numpad-done" id="numpad-done" type="button">Done</button>
+    </div>
+
+    <!-- Live preview of the two digits being entered -->
+    <div class="numpad-preview" aria-live="polite" aria-label="Current entry">
+      <div class="numpad-pip" id="numpad-pip-0">–</div>
+      <div class="numpad-pip" id="numpad-pip-1">–</div>
+    </div>
+
+    <!-- 4 rows × 3 cols: 1-9, phantom + 0 + backspace -->
+    <div class="numpad-grid">
+      <button class="nk" type="button" data-nk="1"><span class="nk-digit">1</span></button>
+      <button class="nk" type="button" data-nk="2"><span class="nk-digit">2</span></button>
+      <button class="nk" type="button" data-nk="3"><span class="nk-digit">3</span></button>
+      <button class="nk" type="button" data-nk="4"><span class="nk-digit">4</span></button>
+      <button class="nk" type="button" data-nk="5"><span class="nk-digit">5</span></button>
+      <button class="nk" type="button" data-nk="6"><span class="nk-digit">6</span></button>
+      <button class="nk" type="button" data-nk="7"><span class="nk-digit">7</span></button>
+      <button class="nk" type="button" data-nk="8"><span class="nk-digit">8</span></button>
+      <button class="nk" type="button" data-nk="9"><span class="nk-digit">9</span></button>
+      <button class="nk phantom" type="button" tabindex="-1" aria-hidden="true"></button>
+      <button class="nk" type="button" data-nk="0"><span class="nk-digit">0</span></button>
+      <button class="nk backspace" type="button" id="numpad-back" aria-label="Delete">
+        <!-- iOS-style backspace chevron -->
+        <svg width="26" height="20" viewBox="0 0 26 20" fill="none" aria-hidden="true">
+          <path d="M9.5 2L2 10l7.5 8H24V2H9.5Z" fill="rgba(0,0,0,0.08)" stroke="none"/>
+          <path d="M9.5 2L2 10l7.5 8H24V2H9.5Z" stroke="#3c3c43" stroke-width="1.4" fill="none"/>
+          <path d="M14 7l6 6M20 7l-6 6" stroke="#3c3c43" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Hidden input so physical keyboard digits feed into numpadEntry -->
+    <input class="numpad-input" id="numpad-input"
+           type="text" inputmode="numeric" autocomplete="off"
+           autocorrect="off" autocapitalize="off" spellcheck="false"
+           maxlength="2" aria-hidden="true" tabindex="-1" />
+
+  </div>
+
+  <!-- ============================================================
+       Alpha sheet — R1 entry (opened automatically by PROG 01)
+       Two fields: R1 A and R1 B, combined 30 chars max
+       ============================================================ -->
+  <div class="alpha-sheet" id="alpha-sheet"
+       role="dialog" aria-modal="true" aria-label="Enter R1 value">
+
+    <div class="numpad-handle" aria-hidden="true"></div>
+
+    <div class="alpha-bar">
+      <span class="alpha-title">R1</span>
+      <button class="alpha-done" id="alpha-done" type="button">Done</button>
+    </div>
+
+    <div class="alpha-fields">
+      <label class="alpha-field-label" for="alpha-input-a">R1 A</label>
+      <input class="alpha-input" id="alpha-input-a"
+             type="text" inputmode="text" autocomplete="off"
+             autocorrect="off" autocapitalize="none"
+             spellcheck="false" maxlength="30"
+             placeholder="R1 A — up to 30 characters"
+             aria-label="R1 A entry" />
+
+      <label class="alpha-field-label" for="alpha-input-b">R1 B</label>
+      <input class="alpha-input" id="alpha-input-b"
+             type="text" inputmode="text" autocomplete="off"
+             autocorrect="off" autocapitalize="none"
+             spellcheck="false" maxlength="30"
+             placeholder="R1 B"
+             aria-label="R1 B entry" />
+    </div>
+
+    <!-- Live preview: first 5 characters, as shown in R1 -->
+    <div class="alpha-preview" aria-live="polite" aria-label="Current R1 entry">
+      <div class="alpha-pip" id="alpha-pip-0">–</div>
+      <div class="alpha-pip" id="alpha-pip-1">–</div>
+      <div class="alpha-pip" id="alpha-pip-2">–</div>
+      <div class="alpha-pip" id="alpha-pip-3">–</div>
+      <div class="alpha-pip" id="alpha-pip-4">–</div>
+    </div>
+
+  </div>
+
+  <!-- ============================================================
+       Entry picker sheet — opened automatically by PROG 03
+       Lists R1 values from the loaded JSON, alphabetically
+       ============================================================ -->
+  <div class="picker-sheet" id="picker-sheet"
+       role="dialog" aria-modal="true" aria-label="Select entry">
+
+    <div class="numpad-handle" aria-hidden="true"></div>
+
+    <div class="picker-bar">
+      <span class="picker-title">SELECT ENTRY</span>
+      <button class="picker-cancel" id="picker-cancel" type="button">Cancel</button>
+    </div>
+
+    <div class="picker-list" id="picker-list">
+      <!-- Populated dynamically from loaded JSON log -->
+    </div>
+
+  </div>
+
+  <!-- ============================================================
+       Export sheet — opened by OFFL before the file is offloaded.
+       Save exports the file; Offload discards it; Cancel keeps it resident.
+       ============================================================ -->
+  <div class="numpad-sheet" id="export-sheet"
+       role="dialog" aria-modal="true" aria-label="Offload file">
+
+    <div class="numpad-handle" aria-hidden="true"></div>
+
+    <div class="numpad-bar">
+      <span class="numpad-title">OFFLOAD FILE</span>
+    </div>
+
+    <div class="export-actions">
+      <button class="export-save" id="export-save" type="button">SAVE</button>
+      <button class="export-offload" id="export-offload" type="button">OFFLOAD</button>
+      <button class="export-cancel" id="export-cancel" type="button">CANCEL</button>
+    </div>
+
+  </div>
+
+<script>
+  (() => {
+    /* ------------------------------------------------------------------ */
+    /* 7-segment polygon data for digits 0-9                               */
+    /* Each digit is an array of polygon `points` strings.                 */
+    /* Segments present in each digit:                                     */
+    /*   TR  = top-right    "23.5,0 27.2,0 23.3,14.7 19.6,14.7"           */
+    /*   TL  = top-left     "7.6,0.6 3.8,14.7 7.5,14.7 10.3,4.3"         */
+    /*   TOP = top bar      "8.3,0 22.6,0 21.6,3.6 10.8,3.6"              */
+    /*   MID = middle       "8.8,13.2 19.1,13.2 18.1,17.1 7.8,17.1"      */
+    /*   BR  = bottom-right "19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6"   */
+    /*   BL  = bottom-left  "3.6,15.6 0,29.3 4.6,25.7 7.3,15.6"          */
+    /*   BOT = bottom bar   "0.5,30 18.7,30 15.8,26.1 5.5,26.1"           */
+    /* ------------------------------------------------------------------ */
+    const SEG = {
+      TR:  "23.5,0 27.2,0 23.3,14.7 19.6,14.7",
+      TL:  "7.6,0.6 3.8,14.7 7.5,14.7 10.3,4.3",
+      TOP: "8.3,0 22.6,0 21.6,3.6 10.8,3.6",
+      MID: "8.8,13.2 19.1,13.2 18.1,17.1 7.8,17.1",
+      BR:  "19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6",
+      BL:  "3.6,15.6 0,29.3 4.6,25.7 7.3,15.6",
+      BOT: "0.5,30 18.7,30 15.8,26.1 5.5,26.1",
+    };
+
+    /* Segments used per digit 0-9 */
+    const DIGITS = {
+      0: [SEG.TOP, SEG.TR, SEG.TL, SEG.BR, SEG.BL, SEG.BOT],
+      1: [SEG.TR, SEG.BR],
+      2: [SEG.TOP, SEG.TR, SEG.MID, SEG.BL, SEG.BOT],
+      3: [SEG.TOP, SEG.TR, SEG.MID, SEG.BR, SEG.BOT],
+      4: [SEG.TL, SEG.TR, SEG.MID, SEG.BR],
+      5: [SEG.TOP, SEG.TL, SEG.MID, SEG.BR, SEG.BOT],
+      6: [SEG.TOP, SEG.TL, SEG.MID, SEG.BR, SEG.BL, SEG.BOT],
+      7: [SEG.TOP, SEG.TR, SEG.BR],
+      8: [SEG.TOP, SEG.TR, SEG.TL, SEG.MID, SEG.BR, SEG.BL, SEG.BOT],
+      9: [SEG.TOP, SEG.TR, SEG.TL, SEG.MID, SEG.BR, SEG.BOT],
+    };
+
+    /* 7-segment approximations for A-Z (and space).
+       Letters that share a digit shape reuse it directly.
+       Characters that can't be represented cleanly render as blank. */
+    const GLYPHS = {
+      ' ': [],
+      'A': [SEG.TOP, SEG.TL, SEG.TR, SEG.MID, SEG.BL, SEG.BR],
+      'B': [SEG.TL, SEG.MID, SEG.BR, SEG.BL, SEG.BOT],          /* looks like lowercase b */
+      'C': [SEG.TOP, SEG.TL, SEG.BL, SEG.BOT],
+      'D': [SEG.TR, SEG.MID, SEG.BR, SEG.BL, SEG.BOT],           /* looks like lowercase d */
+      'E': [SEG.TOP, SEG.TL, SEG.MID, SEG.BL, SEG.BOT],
+      'F': [SEG.TOP, SEG.TL, SEG.MID, SEG.BL],
+      'G': [SEG.TOP, SEG.TL, SEG.MID, SEG.BR, SEG.BL, SEG.BOT],  /* same as 6 */
+      'H': [SEG.TL, SEG.TR, SEG.MID, SEG.BL, SEG.BR],
+      'I': [SEG.TR, SEG.BR],                                       /* same as 1 */
+      'J': [SEG.TOP, SEG.TR, SEG.BR, SEG.BL, SEG.BOT],
+      'K': [SEG.TL, SEG.MID, SEG.BL],                             /* best 7-seg approx */
+      'L': [SEG.TL, SEG.BL, SEG.BOT],
+      'M': [SEG.TOP, SEG.TL, SEG.TR, SEG.BL, SEG.BR],            /* no crossbar — M approx */
+      'N': [SEG.TL, SEG.MID, SEG.BR, SEG.BL],                    /* lowercase n shape */
+      'O': [SEG.TOP, SEG.TL, SEG.TR, SEG.BL, SEG.BR, SEG.BOT],  /* same as 0 */
+      'P': [SEG.TOP, SEG.TL, SEG.TR, SEG.MID, SEG.BL],
+      'Q': [SEG.TOP, SEG.TL, SEG.TR, SEG.MID, SEG.BR, SEG.BOT],  /* same as 9 */
+      'R': [SEG.MID, SEG.BL],                                     /* lowercase r */
+      'S': [SEG.TOP, SEG.TL, SEG.MID, SEG.BR, SEG.BOT],          /* same as 5 */
+      'T': [SEG.TL, SEG.MID, SEG.BL, SEG.BOT],                   /* lowercase t */
+      'U': [SEG.TL, SEG.TR, SEG.BL, SEG.BR, SEG.BOT],
+      'V': [SEG.TL, SEG.BL, SEG.BR, SEG.BOT],                    /* best approx */
+      'W': [SEG.TL, SEG.TR, SEG.BL, SEG.BR, SEG.BOT],            /* same as U */
+      'X': [SEG.TL, SEG.TR, SEG.MID, SEG.BL, SEG.BR],            /* like H */
+      'Y': [SEG.TL, SEG.TR, SEG.MID, SEG.BR, SEG.BOT],           /* same as 9 shape */
+      'Z': [SEG.TOP, SEG.TR, SEG.MID, SEG.BL, SEG.BOT],          /* same as 2 */
+      /* Digits duplicated so lookup works on raw char '0'-'9' too */
+      '0': [SEG.TOP, SEG.TR, SEG.TL, SEG.BR, SEG.BL, SEG.BOT],
+      '1': [SEG.TR, SEG.BR],
+      '2': [SEG.TOP, SEG.TR, SEG.MID, SEG.BL, SEG.BOT],
+      '3': [SEG.TOP, SEG.TR, SEG.MID, SEG.BR, SEG.BOT],
+      '4': [SEG.TL, SEG.TR, SEG.MID, SEG.BR],
+      '5': [SEG.TOP, SEG.TL, SEG.MID, SEG.BR, SEG.BOT],
+      '6': [SEG.TOP, SEG.TL, SEG.MID, SEG.BR, SEG.BL, SEG.BOT],
+      '7': [SEG.TOP, SEG.TR, SEG.BR],
+      '8': [SEG.TOP, SEG.TR, SEG.TL, SEG.MID, SEG.BR, SEG.BL, SEG.BOT],
+      '9': [SEG.TOP, SEG.TR, SEG.TL, SEG.MID, SEG.BR, SEG.BOT],
+    };
+
+    /* Build an SVG element for a single character.
+       w/h let callers size it to the cell (26×30 for .digit, 22×25 for .reg-cell). */
+    const makeSVG = (ch, w, h) => {
+      w = w || 26; h = h || 30;
+      const key  = String(ch).toUpperCase();
+      const segs = GLYPHS[key] ?? DIGITS[parseInt(key, 10)] ?? [];
+      const svg  = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 26 30");
+      svg.setAttribute("aria-hidden", "true");
+      svg.style.cssText = `display:block;width:${w}px;height:${h}px;`;
+      segs.forEach(pts => {
+        const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        poly.setAttribute("class", "seg");
+        poly.setAttribute("points", pts);
+        svg.appendChild(poly);
+      });
+      return svg;
+    };
+
+    /* Write a two-digit value into a .digits container */
+    const renderTwoDigits = (container, twoDigitStr) => {
+      const cells = container.querySelectorAll('.digit');
+      [0, 1].forEach(i => {
+        cells[i].innerHTML = '';
+        cells[i].style.visibility = 'visible';
+        cells[i].appendChild(makeSVG(twoDigitStr[i]));  /* 26×30 default */
+      });
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* Block page pan/zoom touch gestures. The R3 entry picker is a native  */
+    /* <select>: iOS opens the system wheel (native scrolling), and the OS */
+    /* save/share dialogs are outside the page — neither needs an exemption.*/
+    /* ------------------------------------------------------------------ */
+    document.addEventListener('touchmove', (e) => {
+      if (e.target.closest && e.target.closest('.picker-list')) return;
+      e.preventDefault();
+    }, { passive: false });
+    document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+
+    const PRESS_MS = 90;
+    const keys = [...document.querySelectorAll('.k')];
+
+    /* ------------------------------------------------------------------ */
+    /* Sound                                                                */
+    /* ------------------------------------------------------------------ */
+    const VOICES = 3;
+    const sounds = {};
+    [4, 5, 7].forEach(n => {
+      sounds[n] = { voices: [], next: 0 };
+      for (let i = 0; i < VOICES; i++) {
+        const a = new Audio('sd/' + n + '.wav');
+        a.preload = 'auto';
+        a.volume = 0.85;
+        sounds[n].voices.push(a);
+      }
+    });
+
+    const playFor = (key) => {
+      const n = key.dataset.sound;
+      const s = sounds[n];
+      if (!s) return;
+      const a = s.voices[s.next];
+      s.next = (s.next + 1) % s.voices.length;
+      try {
+        a.currentTime = 0;
+        const p = a.play();
+        if (p && p.catch) p.catch(() => {});
+      } catch (_) {}
+    };
+
+    const press   = (k) => k.classList.add('is-pressed');
+    const release = (k) => k.classList.remove('is-pressed');
+
+    /* ------------------------------------------------------------------ */
+    /* Display refs (matches the layout map in .subagents/overview.md)      */
+    /* ------------------------------------------------------------------ */
+    const verbDisplay = document.getElementById('verb-display');   /* VERB field */
+    const nounDisplay = document.getElementById('noun-display');   /* NOUN field */
+    const verbDigits  = verbDisplay.querySelector('.digits');      /* digit cells inside VERB */
+    const nounDigits  = nounDisplay.querySelector('.digits');      /* digit cells inside NOUN */
+    const progDigits  = document.getElementById('prog-digits');   /* digit cells inside PROG */
+    const r1Row       = document.getElementById('r1-row');        /* R1 register row */
+    const r1Cells     = r1Row.querySelectorAll('.reg-cell:not(.sign)'); /* 5 data cells */
+    const r2Row       = document.getElementById('r2-row');        /* R2 register row */
+    const r2Cells     = r2Row.querySelectorAll('.reg-cell:not(.sign)');
+    const r3Row       = document.getElementById('r3-row');        /* R3 register row */
+    const r3Cells     = r3Row.querySelectorAll('.reg-cell:not(.sign)');
+    const compRedy    = document.getElementById('comp-redy');     /* COMP REDY panel */
+
+    /* Backdrop and sheet refs — declared early, used by numpad, alpha, and picker */
+    const backdrop     = document.getElementById('numpad-backdrop');
+    const sheet        = document.getElementById('numpad-sheet');
+    const pickerSheet  = document.getElementById('picker-sheet');
+    const pickerList   = document.getElementById('picker-list');
+    const pickerCancel = document.getElementById('picker-cancel');
+    const exportSheet  = document.getElementById('export-sheet');
+    const exportSave   = document.getElementById('export-save');
+    const exportOffload = document.getElementById('export-offload');
+    const exportCancel = document.getElementById('export-cancel');
+
+    /* ------------------------------------------------------------------ */
+    /* Display state — single source of truth for all field values         */
+    /* ------------------------------------------------------------------ */
+    const displayState = { prog: '', verb: '', noun: '', r1: '', r2: '', r3: '' };
+
+    /* Loaded JSON log — null until a file is successfully loaded */
+    let loadedLog = null;
+
+    /* Entry currently selected for editing (reference into loadedLog.log) */
+    let currentEntry = null;
+
+    /* True when the displayed entry, constant, or trail is unsaved */
+    let dirty = false;
+
+    /* 12-character constant and 2-character trail, stored in the JSON */
+    let constant = "779900009999";
+    let trail = "";
+
+    /* Name used when the resident log is offloaded as a file */
+    let fileName = 'dsky.json';
+
+    /* Resident log waiting on the export sheet's SAVE / OFFLOAD / CANCEL choice */
+    let pendingExportLog = null;
+
+    /* ------------------------------------------------------------------ */
+    /* Message state management                                            */
+    /* ------------------------------------------------------------------ */
+    const messageState = {
+      current: 'NO_FILE',
+      previous: null,
+      timeoutId: null,
+      
+      STATES: {
+        NO_FILE: 'AGC DSKY Mini - No File',
+        FILE_LOADED: 'AGC DSKY Mini - {fileName}',
+        ENTRY_SAVED: 'ENTRY SAVED',
+        SAVE_ERROR: 'SAVE ERROR',
+        R1_NOT_SAVED: 'R1 NOT SAVED',
+        ENTRY_CLEAR: 'ENTRY CLEAR',
+        ENTRY_LOADED: '{r1bContent}',
+        R1B_COPY: 'R1 B COPY',
+        KY_COPY: 'KY COPY'
+      }
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* COMP REDY states:                                                   */
+    /*   green  — a document is resident, no entry loaded, nothing unsaved  */
+    /*   orange — an entry is loaded/visualised and unchanged               */
+    /*   red    — a new or modified entry (or settings) is unsaved          */
+    /*   off    — no document is resident                                   */
+    /* ------------------------------------------------------------------ */
+    const syncCompRedy = () => {
+      const hasFile  = loadedLog !== null;
+      const hasEntry = hasFile && currentEntry !== null;
+      compRedy.classList.toggle('is-ready', hasFile && !dirty && !hasEntry);
+      compRedy.classList.toggle('is-entry', hasFile && !dirty && hasEntry);
+      compRedy.classList.toggle('is-dirty', hasFile && dirty);
+    };
+
+    const refreshDirty = () => {
+      if (loadedLog === null) {
+        dirty = false;
+        syncCompRedy();
+        return;
+      }
+      const r1 = (displayState.r1 || '').trim();
+      /* No loaded entry: any R1 content is a new unsaved entry.
+         Loaded entry: only a different R1 counts as an edit. */
+      const entryChanged = currentEntry
+        ? r1 !== String(currentEntry.r1 || '').trim()
+        : r1 !== '';
+      const settingsChanged = constant !== loadedLog.constant || trail !== loadedLog.trail;
+      dirty = entryChanged || settingsChanged;
+      syncCompRedy();
+      
+      // Update message for R1 NOT SAVED state
+      if (currentEntry !== null && dirty === true) {
+        updateMessage('R1_NOT_SAVED');
+      }
+    };
+
+    /* Keep entries ordered alphabetically by their full R1 value */
+    const compareEntries = (a, b) => {
+      const byR1 = String(a.r1 || '').localeCompare(String(b.r1 || ''), undefined, { sensitivity: 'base' });
+      if (byR1 !== 0) return byR1;
+      return String(a.timestamp || '').localeCompare(String(b.timestamp || ''));
+    };
+
+    const sortLog = (log) => {
+      if (Array.isArray(log.log)) log.log.sort(compareEntries);
+      return log;
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* Message update function                                              */
+    /* ------------------------------------------------------------------ */
+    const updateMessage = (state, data = {}) => {
+      // Clear any existing timeout
+      if (messageState.timeoutId) {
+        clearTimeout(messageState.timeoutId);
+        messageState.timeoutId = null;
+      }
+      
+      // Store previous state if not a timed message
+      if (!['R1B_COPY', 'KY_COPY', 'ENTRY_CLEAR', 'ENTRY_SAVED', 'SAVE_ERROR'].includes(state)) {
+        messageState.previous = messageState.current;
+      }
+      
+      // Update current state
+      messageState.current = state;
+      
+      // Get message text
+      let message = messageState.STATES[state];
+      if (state === 'FILE_LOADED' && data.fileName) {
+        message = message.replace('{fileName}', data.fileName);
+      } else if (state === 'ENTRY_LOADED' && data.r1bContent) {
+        message = data.r1bContent; // Full R1 B content (will be truncated with ellipsis if too long)
+      }
+      
+      // Update DOM
+      const caption = document.querySelector('.caption');
+      if (caption) {
+        caption.textContent = message;
+        // Set data-state for CSS colour coding
+        const stateMap = {
+          SAVE_ERROR: 'error',
+          R1_NOT_SAVED: 'warning',
+          ENTRY_SAVED: 'success',
+          R1B_COPY: 'success',
+          KY_COPY: 'success'
+        };
+        caption.dataset.state = stateMap[state] || 'info';
+      }
+      
+      // Handle timed messages
+      if (state === 'R1B_COPY' || state === 'KY_COPY') {
+        messageState.timeoutId = setTimeout(() => {
+          // After copy confirmation, default back to R1 B contents if an entry is loaded
+          if (currentEntry !== null) {
+            const r1Parts = (currentEntry.r1 || '').split(' ');
+            const r1b = r1Parts.length > 1 ? r1Parts.slice(1).join(' ') : '';
+            updateMessage('ENTRY_LOADED', { r1bContent: r1b });
+          } else {
+            // No entry loaded, revert to previous state
+            updateMessage(messageState.previous, data);
+          }
+        }, 5000);
+      } else if (state === 'ENTRY_CLEAR') {
+        messageState.timeoutId = setTimeout(() => {
+          if (loadedLog !== null) {
+            updateMessage('FILE_LOADED', { fileName });
+          } else {
+            updateMessage('NO_FILE');
+          }
+        }, 5000);
+      } else if (state === 'ENTRY_SAVED' || state === 'SAVE_ERROR') {
+        messageState.timeoutId = setTimeout(() => {
+          if (loadedLog !== null) {
+            updateMessage('FILE_LOADED', { fileName });
+          } else {
+            updateMessage('NO_FILE');
+          }
+        }, 3000);
+      }
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* Rx renderers and clear helpers                                       */
+    /* ------------------------------------------------------------------ */
+    const renderR1 = (str) => {
+      /* Store the full value (up to 30 chars) in displayState */
+      const fullStr = String(str).slice(0, 30);
+      /* Display only the first 5 characters (7-segment glyphs are uppercase) */
+      const displayStr = fullStr.slice(0, 5).toUpperCase();
+
+      r1Cells.forEach((cell, i) => {
+        cell.innerHTML = '';
+        if (displayStr[i] !== undefined) {
+          cell.style.visibility = 'visible';
+          cell.appendChild(makeSVG(displayStr[i]));
+        } else {
+          cell.style.visibility = 'hidden';
+        }
+      });
+      displayState.r1 = fullStr;
+    };
+
+    const clearR1 = () => {
+      r1Cells.forEach(cell => { cell.innerHTML = ''; cell.style.visibility = 'hidden'; });
+      displayState.r1 = '';
+      /* Clear R2 when R1 is cleared */
+      renderR2();
+    };
+
+    const renderRx = (cells, str, stateKey) => {
+      const upper = str.toUpperCase().slice(0, 5);
+      cells.forEach((cell, i) => {
+        cell.innerHTML = '';
+        if (upper[i] !== undefined) {
+          cell.style.visibility = 'visible';
+          cell.appendChild(makeSVG(upper[i]));
+        } else {
+          cell.style.visibility = 'hidden';
+        }
+      });
+      displayState[stateKey] = upper;
+    };
+
+    const clearRx = (cells, stateKey) => {
+      cells.forEach(cell => { cell.innerHTML = ''; cell.style.visibility = 'hidden'; });
+      displayState[stateKey] = '';
+    };
+
+    /* Render R2 as the first 5 characters of R1 B */
+    const renderR2 = () => {
+      const r1Val = displayState.r1;
+      const sep = r1Val.indexOf(' ');
+      const r1b = sep === -1 ? '' : r1Val.slice(sep + 1);
+      const displayStr = r1b.slice(0, 5).toUpperCase();
+
+      r2Cells.forEach((cell, i) => {
+        cell.innerHTML = '';
+        if (displayStr[i] !== undefined) {
+          cell.style.visibility = 'visible';
+          cell.appendChild(makeSVG(displayStr[i]));
+        } else {
+          cell.style.visibility = 'hidden';
+        }
+      });
+      displayState.r2 = displayStr;
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* OFFL ↔ LOAD toggle                                                   */
+    /* LOAD — no file resident: open the file picker                        */
+    /* OFFL — file resident: unload it (no saving)                          */
+    /* ------------------------------------------------------------------ */
+    const offlBtn   = document.querySelector('.k.entr');
+    const offlLabel = offlBtn.querySelector('.key-label');
+    const loadInput = document.getElementById('load-input');
+
+    const syncOfflBtn = () => {
+      const hasFile = loadedLog !== null;
+      offlLabel.textContent = hasFile ? 'OFFL' : 'LOAD';
+      offlBtn.setAttribute('aria-label', hasFile ? 'OFFL' : 'LOAD');
+      offlBtn.classList.toggle('is-load', !hasFile);
+    };
+
+    const clearAllFields = () => {
+      [verbDisplay, nounDisplay].forEach(display => {
+        display.querySelectorAll('.digit svg').forEach(svg => { svg.style.visibility = 'hidden'; });
+      });
+      progDigits.querySelectorAll('.digit').forEach(cell => {
+        cell.innerHTML = '';
+        cell.style.visibility = 'hidden';
+      });
+      clearR1();
+      displayState.verb = '';
+      displayState.noun = '';
+      displayState.prog = '';
+      /* Clear R2 and R3 */
+      renderR2();
+      clearRx(r3Cells, 'r3');
+      syncOfflBtn();
+      /* clearAllFields does NOT affect loadedLog or COMP REDY */
+    };
+
+    /* Parse a dsky.json file — store in memory and light COMP REDY */
+    const loadEntry = (file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          const rawLog = Array.isArray(parsed.log) ? parsed.log : [parsed];
+          const entries = rawLog
+            .map(entry => ({
+              timestamp: entry.timestamp || new Date().toISOString(),
+              r1: String(entry.r1 || '').slice(0, 30),
+            }))
+            .filter(entry => entry.r1.length > 0);
+
+          fileName = file.name || 'dsky.json';
+
+          loadedLog = sortLog({
+            log: entries,
+            constant: (typeof parsed.constant === 'string' && parsed.constant.length === 12)
+              ? parsed.constant
+              : constant,
+            trail: (typeof parsed.trail === 'string') ? parsed.trail.slice(0, 2) : trail,
+          });
+
+          constant = loadedLog.constant;
+          trail    = loadedLog.trail;
+          currentEntry = null;
+          dirty = false;
+          clearAllFields();   /* ensure display is blank */
+          renderR2();
+          syncCompRedy();     /* green — file resident and saved */
+          syncOfflBtn();      /* OFFL */
+          updateMessage('FILE_LOADED', { fileName });
+        } catch (_) { /* silently ignore malformed files */ }
+      };
+      reader.readAsText(file);
+    };
+
+    loadInput.addEventListener('change', (e) => {
+      if (e.target.files[0]) loadEntry(e.target.files[0]);
+      loadInput.value = '';   /* reset so same file can be reloaded */
+    });
+
+    /* ------------------------------------------------------------------ */
+    /* Offload the resident log (used by the OFFL key)                     */
+    /* SAVE never triggers this — only the explicit offload does.           */
+    /* The in-app sheet offers Save, Offload (discard), or Cancel. */
+    /* ------------------------------------------------------------------ */
+    const buildExportFile = (log) => {
+      if (typeof File !== 'function') return null;
+      try {
+        return new File([JSON.stringify(log, null, 2)], fileName, { type: 'application/json' });
+      } catch (_) {
+        return null;
+      }
+    };
+
+    const triggerAnchorDownload = (log) => {
+      try {
+        const blob = new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href = url; a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+      } catch (_) {}
+    };
+
+    const closeExportSheet = () => {
+      backdrop.classList.remove('is-open');
+      exportSheet.classList.remove('is-open');
+      pendingExportLog = null;
+    };
+
+    const unloadFile = () => {
+      /* Unload the resident log after it has been offloaded. */
+      loadedLog = null;
+      currentEntry = null;
+      dirty = false;
+      constant = "779900009999";
+      trail = '';
+      fileName = 'dsky.json';
+      clearAllFields();
+      renderR2();
+      syncCompRedy();
+      syncOfflBtn();
+      updateMessage('NO_FILE');
+    };
+
+    const openExportSheet = (log) => {
+      pendingExportLog = log;
+      backdrop.classList.add('is-open');
+      exportSheet.classList.add('is-open');
+    };
+
+    const performExport = async () => {
+      const log = pendingExportLog;
+      if (!log) { closeExportSheet(); return; }
+
+      const json = JSON.stringify(log, null, 2);
+      closeExportSheet();
+
+      /* 1. Chromium / Edge: native save dialog — full Finder navigation
+            (choose folder and file name). Safari does not implement
+            showSaveFilePicker, so it falls through to Web Share. */
+      if (typeof window.showSaveFilePicker === 'function') {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{
+              description: 'JSON document',
+              accept: { 'application/json': ['.json'] },
+            }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(json);
+          await writable.close();
+          unloadFile();
+          return;
+        } catch (error) {
+          if (error && error.name === 'AbortError') return;  /* keep resident */
+          /* any other failure → try Web Share, then download */
+        }
+      }
+
+      /* 2. Web Share — iOS share sheet with "Save to Files" (Files app
+            navigation). Cancelling the sheet (AbortError) keeps the
+            document resident. */
+      const file = buildExportFile(log);
+      let canShareFiles = false;
+      try {
+        canShareFiles = !!(file && navigator.canShare && navigator.canShare({ files: [file] }));
+      } catch (_) {}
+
+      if (canShareFiles) {
+        try {
+          await navigator.share({ files: [file], title: fileName });
+          unloadFile();
+          return;
+        } catch (error) {
+          if (error && error.name === 'AbortError') return;  /* keep resident */
+        }
+      }
+
+      /* 3. Last resort: anchor download (Safari's Downloads folder). */
+      triggerAnchorDownload(log);
+      unloadFile();
+    };
+
+    exportSave.addEventListener('click', performExport);
+    exportOffload.addEventListener('click', () => {
+      closeExportSheet();
+      unloadFile();
+    });
+    exportCancel.addEventListener('click', closeExportSheet);
+    backdrop.addEventListener('pointerup', () => {
+      if (exportSheet.classList.contains('is-open')) closeExportSheet();
+    });
+
+    /* Set initial OFFL/LOAD and COMP REDY state (no file = LOAD, dark) */
+    syncOfflBtn();
+    syncCompRedy();
+    updateMessage('NO_FILE');
+
+    /* ------------------------------------------------------------------ */
+    /* Entry picker (opened automatically by PROG 03)                      */
+    /* ------------------------------------------------------------------ */
+    const closePicker = () => {
+      backdrop.classList.remove('is-open');
+      pickerSheet.classList.remove('is-open');
+    };
+
+    const selectEntry = (entry) => {
+      /* Any unsaved edit to the previously displayed entry is discarded. */
+      dirty = false;
+      clearAllFields();
+      renderR1(entry.r1 || '');
+      renderR2();
+      currentEntry = entry;
+      refreshDirty();   /* orange — entry loaded, nothing unsaved */
+      syncOfflBtn();
+      closePicker();
+      
+      // Update message with R1 B content
+      const r1Parts = (entry.r1 || '').split(' ');
+      const r1b = r1Parts.length > 1 ? r1Parts.slice(1).join(' ') : '';
+      updateMessage('ENTRY_LOADED', { r1bContent: r1b });
+    };
+
+    const openPicker = () => {
+      pickerList.innerHTML = '';
+
+      if (!loadedLog || !loadedLog.log.length) {
+        const empty = document.createElement('div');
+        empty.className = 'picker-empty';
+        empty.textContent = loadedLog ? 'No entries' : 'No file loaded';
+        pickerList.appendChild(empty);
+        backdrop.classList.add('is-open');
+        pickerSheet.classList.add('is-open');
+        return;
+      }
+
+      /* Grouped list, matching an iOS list picker: predictable alphabetical
+         order, one row per entry, a checkmark on the loaded entry. */
+      const group = document.createElement('div');
+      group.className = 'picker-group';
+      group.setAttribute('role', 'listbox');
+      group.setAttribute('aria-label', 'Entries');
+
+      const entries = [...loadedLog.log].sort(compareEntries);
+      entries.forEach((entry) => {
+        const btn = document.createElement('button');
+        btn.className = 'picker-item';
+        btn.type = 'button';
+        btn.setAttribute('role', 'option');
+        btn.setAttribute('aria-label', entry.r1);
+
+        const isSelected = currentEntry !== null &&
+          entry.timestamp === currentEntry.timestamp;
+        if (isSelected) btn.classList.add('is-selected');
+        btn.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+
+        const label = document.createElement('span');
+        label.className = 'picker-item-r1';
+        label.textContent = entry.r1;   /* full R1 A + R1 B, nothing else */
+
+        const check = document.createElement('span');
+        check.className = 'picker-check';
+        check.setAttribute('aria-hidden', 'true');
+        check.textContent = '✓';
+
+        btn.append(label, check);
+        btn.addEventListener('click', () => selectEntry(entry));
+        group.appendChild(btn);
+      });
+
+      pickerList.appendChild(group);
+      backdrop.classList.add('is-open');
+      pickerSheet.classList.add('is-open');
+
+      /* Keep the loaded entry visible when the list opens. */
+      requestAnimationFrame(() => {
+        const selected = pickerList.querySelector('.picker-item.is-selected');
+        if (!selected) return;
+        const listRect = pickerList.getBoundingClientRect();
+        const rowRect  = selected.getBoundingClientRect();
+        pickerList.scrollTop += rowRect.top - listRect.top -
+          (pickerList.clientHeight - rowRect.height) / 2;
+      });
+    };
+
+    pickerCancel.addEventListener('click', closePicker);
+
+    /* Backdrop tap closes picker (same guard pattern as numpad/alpha) */
+    backdrop.addEventListener('pointerup', () => {
+      if (pickerSheet.classList.contains('is-open')) closePicker();
+    });
+
+    /* ------------------------------------------------------------------ */
+    /* Numeric pad sheet                                                    */
+    /* ------------------------------------------------------------------ */
+    const doneBtn      = document.getElementById('numpad-done');
+    const backBtn      = document.getElementById('numpad-back');
+    const numpadInput  = document.getElementById('numpad-input');
+    const pip0         = document.getElementById('numpad-pip-0');
+    const pip1         = document.getElementById('numpad-pip-1');
+    const sheetTitle   = document.querySelector('.numpad-title');  /* dynamic label */
+
+    let numpadEntry  = [];   /* array of 0..2 digit characters */
+    let numpadTarget = null; /* 'prog' */
+
+    const updatePips = () => {
+      [pip0, pip1].forEach((pip, i) => {
+        if (numpadEntry[i] !== undefined) {
+          pip.textContent = numpadEntry[i];
+          pip.classList.add('has-digit');
+        } else {
+          pip.textContent = '–';
+          pip.classList.remove('has-digit');
+        }
+      });
+    };
+
+    const openNumpad = (target) => {
+      numpadTarget = target;
+      numpadEntry  = [];
+      sheetTitle.textContent = target.toUpperCase();
+      sheet.setAttribute('aria-label', 'Enter ' + target.toUpperCase() + ' code');
+      updatePips();
+      backdrop.classList.add('is-open');
+      sheet.classList.add('is-open');
+      numpadInput.value = '';
+      numpadInput.focus();   /* capture physical keyboard — synchronous in gesture handler */
+      doneBtn.focus();
+    };
+
+    const closeNumpad = () => {
+      backdrop.classList.remove('is-open');
+      sheet.classList.remove('is-open');
+      numpadTarget = null;
+    };
+
+    const commitNumpad = () => {
+      if (numpadEntry.length === 0) { closeNumpad(); return; }
+
+      /* PROG field only accepts 1, 2, 3, or 4 */
+      if (numpadTarget === 'prog') {
+        const d = numpadEntry[0];
+        if (!['1','2','3','4'].includes(d)) { closeNumpad(); return; }
+        const padded = '0' + d;   /* always "01", "02", "03", "04" */
+        renderTwoDigits(progDigits, padded);
+        displayState.prog = padded;
+        closeNumpad();
+        /* Selecting a PROG opens its entry UI directly — no RSET needed. */
+        if (padded === '01') {
+          /* PROG 01 needs a resident document; without one, run the
+             PROG 04 new-file prompt first, then continue into R1. */
+          if (loadedLog === null) {
+            setTimeout(() => openNewFilePrompt(openAlpha), 220);
+          } else {
+            setTimeout(openAlpha, 220);
+          }
+        } else if (padded === '02') {
+          setTimeout(openConstantEditor, 220);
+        } else if (padded === '03') {
+          setTimeout(openPicker, 220);
+        } else if (padded === '04') {
+          setTimeout(() => openNewFilePrompt(), 220);
+        }
+        return;
+      }
+    };
+
+    /* Numpad digit keys */
+    document.querySelectorAll('.nk[data-nk]').forEach(nk => {
+      const flash = () => {
+        nk.classList.add('is-pressed');
+        setTimeout(() => nk.classList.remove('is-pressed'), 80);
+      };
+
+      const tap = () => {
+        if (numpadEntry.length >= 2) return;   /* 2-digit cap */
+        /* PROG only accepts 1, 2, 3, 4 — reject other digits immediately */
+        if (numpadTarget === 'prog' && !['1','2','3','4'].includes(nk.dataset.nk)) return;
+        numpadEntry.push(nk.dataset.nk);
+        updatePips();
+        flash();
+        /* Auto-commit: after 2nd digit normally, or immediately for PROG */
+        if (numpadEntry.length === 2 || numpadTarget === 'prog') {
+          setTimeout(commitNumpad, 180);
+        }
+      };
+
+      nk.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        nk.setPointerCapture?.(e.pointerId);
+      });
+      nk.addEventListener('pointerup', (e) => {
+        if (e.button !== 0) return;
+        tap();
+      });
+      nk.addEventListener('click', (e) => {
+        if (e.detail === 0) tap();
+      });
+    });
+
+    /* Backspace */
+    backBtn.addEventListener('pointerup', (e) => {
+      if (e.button !== 0) return;
+      numpadEntry.pop();
+      updatePips();
+    });
+    backBtn.addEventListener('click', (e) => {
+      if (e.detail === 0) { numpadEntry.pop(); updatePips(); }
+    });
+
+    /* Done button */
+    doneBtn.addEventListener('click', commitNumpad);
+
+    /* Physical keyboard → numpadEntry                                      */
+    /* keydown handles digits + backspace + Enter reliably across browsers  */
+    document.addEventListener('keydown', (e) => {
+      if (!sheet.classList.contains('is-open')) return;
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        if (numpadEntry.length >= 2) return;
+        /* PROG only accepts 1, 2, 3, 4 */
+        if (numpadTarget === 'prog' && !['1','2','3','4'].includes(e.key)) return;
+        const matchKey = sheet.querySelector(`.nk[data-nk="${e.key}"]`);
+        if (matchKey) {
+          matchKey.classList.add('is-pressed');
+          setTimeout(() => matchKey.classList.remove('is-pressed'), 80);
+        }
+        numpadEntry.push(e.key);
+        updatePips();
+        if (numpadEntry.length === 2 || numpadTarget === 'prog') {
+          setTimeout(commitNumpad, 180);
+        }
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        numpadEntry.pop();
+        updatePips();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        commitNumpad();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeNumpad();
+      }
+    });
+
+    /* Tap backdrop to dismiss without committing (numpad only) */
+    backdrop.addEventListener('pointerup', () => {
+      if (sheet.classList.contains('is-open')) closeNumpad();
+    });
+
+    /* ------------------------------------------------------------------ */
+    /* R1 alpha sheet (opened automatically by PROG 01)                    */
+    /* Two fields — R1 A and R1 B — joined by a single space into R1       */
+    /* ------------------------------------------------------------------ */
+    const alphaSheet  = document.getElementById('alpha-sheet');
+    const alphaInputA = document.getElementById('alpha-input-a');
+    const alphaInputB = document.getElementById('alpha-input-b');
+    const alphaDone   = document.getElementById('alpha-done');
+    const alphaPips   = [0,1,2,3,4].map(i => document.getElementById('alpha-pip-' + i));
+    const alphaTitle  = document.querySelector('.alpha-title');
+
+    /* Combined R1 value from the two fields (single space separator). */
+    const joinAlphaFields = () => {
+      const a = alphaInputA.value.trim();
+      const b = alphaInputB.value.trim();
+      if (a && b) return a + ' ' + b;
+      /* R1 B without R1 A is stored as the whole R1 so nothing is lost. */
+      return a || b;
+    };
+
+    const updateAlphaPips = (val) => {
+      alphaPips.forEach((pip, i) => {
+        if (val[i] !== undefined) {
+          pip.textContent = val[i];
+          pip.classList.add('has-char');
+        } else {
+          pip.textContent = '–';
+          pip.classList.remove('has-char');
+        }
+      });
+    };
+
+    /* Keep the two fields within the 30-character combined R1 limit. */
+    const syncAlphaCaps = () => {
+      if (alphaInputA.value.length > 30) {
+        alphaInputA.value = alphaInputA.value.slice(0, 30);
+      }
+      const roomForB = Math.max(0, 30 - (alphaInputA.value.length ? alphaInputA.value.length + 1 : 0));
+      if (alphaInputB.value.length > roomForB) {
+        alphaInputB.value = alphaInputB.value.slice(0, roomForB);
+      }
+      updateAlphaPips(joinAlphaFields());
+    };
+
+    const openAlpha = () => {
+      /* Prefill from the current R1 (respects CLR), split at first space. */
+      const initial = displayState.r1 || '';
+      const sep = initial.indexOf(' ');
+      alphaInputA.value = sep === -1 ? initial : initial.slice(0, sep);
+      alphaInputB.value = sep === -1 ? '' : initial.slice(sep + 1);
+      alphaTitle.textContent = 'R1';
+      syncAlphaCaps();
+      backdrop.classList.add('is-open');
+      alphaSheet.classList.add('is-open');
+      setTimeout(() => {
+        alphaInputA.focus();
+        alphaInputA.select();
+      }, 30);
+    };
+
+    const closeAlpha = () => {
+      alphaInputA.blur();
+      alphaInputB.blur();
+      backdrop.classList.remove('is-open');
+      alphaSheet.classList.remove('is-open');
+    };
+
+    const commitAlpha = () => {
+      const val = joinAlphaFields().slice(0, 30);
+      renderR1(val);
+      renderR2();
+      refreshDirty();
+      closeAlpha();
+    };
+
+    /* Keep pips and the combined cap in sync with every keystroke */
+    [alphaInputA, alphaInputB].forEach(input => {
+      input.addEventListener('input', syncAlphaCaps);
+    });
+
+    /* Return in R1 A moves to R1 B; Return in R1 B commits. */
+    alphaInputA.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); alphaInputB.focus(); }
+    });
+    alphaInputB.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commitAlpha(); }
+    });
+
+    alphaDone.addEventListener('click', commitAlpha);
+
+    /* ------------------------------------------------------------------ */
+    /* Constant + trail editor (opened automatically by PROG 02)           */
+    /* ------------------------------------------------------------------ */
+    const openConstantEditor = () => {
+      /* Create a modal for constant and trail editing */
+      const modal = document.createElement('div');
+      modal.className = 'numpad-sheet';
+      modal.style.position = 'fixed';
+      modal.style.left = '0';
+      modal.style.right = '0';
+      modal.style.bottom = '0';
+      modal.style.zIndex = '102';  /* Higher than other sheets */
+      modal.style.background = '#d1d1d6';
+      modal.style.borderRadius = '13px 13px 0 0';
+      modal.style.boxShadow = '0 -2px 20px rgba(0,0,0,0.22)';
+      modal.style.padding = '0 0 env(safe-area-inset-bottom, 0px)';
+      modal.style.transform = 'translateY(100%)';
+      modal.style.transition = 'transform 320ms cubic-bezier(0.32, 0.72, 0, 1)';
+      modal.style.userSelect = 'none';
+      modal.style.touchAction = 'none';
+
+      modal.innerHTML = `
+        <div class="numpad-handle" aria-hidden="true"></div>
+        <div class="numpad-bar">
+          <span class="numpad-title">CONSTANT / TRAIL</span>
+          <button class="numpad-done" id="constant-done" type="button">Done</button>
+        </div>
+        <div style="padding:0 20px 20px;display:flex;flex-direction:column;gap:10px;">
+          <label for="constant-input" style="font-size:12px;font-weight:600;color:#3c3c43;text-transform:uppercase;letter-spacing:.04em;">Constant — 12 characters</label>
+          <input class="alpha-input" id="constant-input"
+                 style="margin:0;width:100%;"
+                 type="text" autocomplete="off"
+                 autocorrect="off" autocapitalize="none"
+                 spellcheck="false" maxlength="12"
+                 placeholder="Enter 12 characters"
+                 aria-label="Edit constant" />
+          <label for="trail-input" style="font-size:12px;font-weight:600;color:#3c3c43;text-transform:uppercase;letter-spacing:.04em;">Trail — 2 characters</label>
+          <input class="alpha-input" id="trail-input"
+                 style="margin:0;width:100%;"
+                 type="text" autocomplete="off"
+                 autocorrect="off" autocapitalize="none"
+                 spellcheck="false" maxlength="2"
+                 placeholder="e.g. ##"
+                 aria-label="Edit trail" />
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+      backdrop.classList.add('is-open');
+
+      /* Show modal with animation */
+      setTimeout(() => {
+        modal.classList.add('is-open');
+        modal.style.transform = 'translateY(0)';
+      }, 10);
+
+      const constantInput = document.getElementById('constant-input');
+      const trailInput    = document.getElementById('trail-input');
+      const doneBtn       = document.getElementById('constant-done');
+      constantInput.value = constant;
+      trailInput.value    = trail;
+
+      setTimeout(() => {
+        constantInput.focus();
+        constantInput.select();
+      }, 50);
+
+      const saveConstant = () => {
+        const c = constantInput.value.slice(0, 12);
+        const t = trailInput.value.slice(0, 2);
+        if (c.length === 12) {
+          constant = c;
+          trail = t;
+          renderR2();  /* Update R2 display with new constant */
+          refreshDirty();
+        }
+        closeConstantEditor();
+      };
+
+      const closeConstantEditor = () => {
+        backdrop.classList.remove('is-open');
+        modal.style.transform = 'translateY(100%)';
+        modal.classList.remove('is-open');
+        setTimeout(() => modal.remove(), 320);
+      };
+
+      doneBtn.addEventListener('click', saveConstant);
+      [constantInput, trailInput].forEach(input => {
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            saveConstant();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            closeConstantEditor();
+          }
+        });
+      });
+
+      /* Enforce caps */
+      constantInput.addEventListener('input', () => {
+        constantInput.value = constantInput.value.slice(0, 12);
+      });
+      trailInput.addEventListener('input', () => {
+        trailInput.value = trailInput.value.slice(0, 2);
+      });
+
+      /* Custom backdrop handler for constant editor */
+      const backdropHandler = (e) => {
+        if (modal.classList.contains('is-open')) {
+          e.stopPropagation();
+          closeConstantEditor();
+        }
+      };
+
+      backdrop.addEventListener('pointerup', backdropHandler, { once: true });
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* New-file prompt (opened automatically by PROG 04, or by PROG 01     */
+    /* when no file is loaded). Creates an empty resident log under a      */
+    /* user-supplied file name; an optional onCreate runs after Create.    */
+    /* ------------------------------------------------------------------ */
+    const openNewFilePrompt = (onCreate) => {
+      const modal = document.createElement('div');
+      modal.className = 'numpad-sheet';
+      modal.style.position = 'fixed';
+      modal.style.left = '0';
+      modal.style.right = '0';
+      modal.style.bottom = '0';
+      modal.style.zIndex = '102';
+      modal.style.background = '#d1d1d6';
+      modal.style.borderRadius = '13px 13px 0 0';
+      modal.style.boxShadow = '0 -2px 20px rgba(0,0,0,0.22)';
+      modal.style.padding = '0 0 env(safe-area-inset-bottom, 0px)';
+      modal.style.transform = 'translateY(100%)';
+      modal.style.transition = 'transform 320ms cubic-bezier(0.32, 0.72, 0, 1)';
+      modal.style.userSelect = 'none';
+      modal.style.touchAction = 'none';
+
+      modal.innerHTML = `
+        <div class="numpad-handle" aria-hidden="true"></div>
+        <div class="numpad-bar">
+          <span class="numpad-title">NEW FILE</span>
+          <button class="numpad-done" id="newfile-done" type="button">Create</button>
+        </div>
+        <div style="padding:0 20px 20px;">
+          <input class="alpha-input" id="newfile-input"
+                 style="margin:0;width:100%;"
+                 type="text" autocomplete="off"
+                 autocorrect="off" autocapitalize="none"
+                 spellcheck="false" maxlength="60"
+                 placeholder="File name"
+                 aria-label="New file name" />
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+      backdrop.classList.add('is-open');
+
+      setTimeout(() => {
+        modal.classList.add('is-open');
+        modal.style.transform = 'translateY(0)';
+      }, 10);
+
+      const input = document.getElementById('newfile-input');
+      const doneBtn = document.getElementById('newfile-done');
+
+      const closeNewFile = () => {
+        backdrop.classList.remove('is-open');
+        modal.style.transform = 'translateY(100%)';
+        modal.classList.remove('is-open');
+        setTimeout(() => modal.remove(), 320);
+      };
+
+      const createNewFile = () => {
+        let name = input.value.trim();
+        if (!name) name = 'dsky';
+        fileName = /\.json$/i.test(name) ? name : name + '.json';
+
+        /* Brand-new log: no entries, default constant and empty trail. */
+        loadedLog = { log: [], constant: "779900009999", trail: '' };
+        constant = loadedLog.constant;
+        trail = loadedLog.trail;
+        currentEntry = null;
+        dirty = false;
+        clearAllFields();
+        renderR2();
+        syncCompRedy();
+        syncOfflBtn();
+        closeNewFile();
+        /* Continue into PROG 01 when the prompt was chained from it.
+           340 ms lets the modal finish sliding out first. */
+        if (typeof onCreate === 'function') setTimeout(onCreate, 340);
+      };
+
+      input.value = 'dsky';
+      setTimeout(() => {
+        input.focus();
+        input.select();
+      }, 50);
+
+      doneBtn.addEventListener('click', createNewFile);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          createNewFile();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          closeNewFile();
+        }
+      });
+
+      const backdropHandler = (e) => {
+        if (modal.classList.contains('is-open')) {
+          e.stopPropagation();
+          closeNewFile();
+        }
+      };
+
+      backdrop.addEventListener('pointerup', backdropHandler, { once: true });
+    };
+
+    backdrop.addEventListener('pointerup', () => {
+      if (alphaSheet.classList.contains('is-open')) closeAlpha();
+    });
+
+    /* ------------------------------------------------------------------ */
+    /* Save the displayed entry / constant / trail into the resident log    */
+    /* SAVE stays in-app — it must not open a file download prompt.         */
+    /* ------------------------------------------------------------------ */
+    const saveCurrent = () => {
+      try {
+        /* The resident file is the only source; after OFFL nothing is retained. */
+        let logArr = [];
+        if (loadedLog && Array.isArray(loadedLog.log)) {
+          logArr = JSON.parse(JSON.stringify(loadedLog.log));
+        }
+
+        const r1 = (displayState.r1 || '').trim().slice(0, 30);
+        const oldTs = currentEntry ? currentEntry.timestamp : null;
+        const idx = oldTs !== null ? logArr.findIndex(e => e.timestamp === oldTs) : -1;
+
+        /* Nothing meaningful to save and no document resident: no-op. */
+        if (loadedLog === null && r1 === '' && constant === "779900009999" && trail === '') {
+          return;
+        }
+
+        if (currentEntry !== null) {
+          if (r1 === '') {
+            /* Cleared selected entry + SAVE → remove it from the log. */
+            if (idx !== -1) logArr.splice(idx, 1);
+          } else {
+            const updated = { timestamp: new Date().toISOString(), r1 };
+            if (idx !== -1) logArr[idx] = updated;
+            else logArr.push(updated);
+          }
+        } else if (r1 !== '') {
+          logArr.push({ timestamp: new Date().toISOString(), r1 });
+        }
+
+        /* Alphabetical by full R1 value, constant and trail at the bottom. */
+        const log = sortLog({ log: logArr, constant, trail });
+
+        /* The saved document stays resident, but the entry unloads so the next
+           SAVE creates a new entry instead of editing this one. */
+        loadedLog = log;
+        currentEntry = null;
+        dirty = false;
+        renderR1('');
+        renderR2();
+        syncCompRedy();
+        syncOfflBtn();
+        // Show success message
+        updateMessage('ENTRY_SAVED');
+      } catch (error) {
+        // Show error message
+        updateMessage('SAVE_ERROR');
+      }
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* Clipboard helpers                                                   */
+    /* ------------------------------------------------------------------ */
+    const fallbackCopy = (text) => {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(textarea);
+    };
+
+    const copyText = (text) => {
+      if (!text) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+      } else {
+        fallbackCopy(text);
+      }
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* Main keypad (DSKY hardware keys)                                     */
+    /* ------------------------------------------------------------------ */
+    const handleKey = (key) => {
+      const name = key.dataset.key;
+
+      if (name === 'VERB') {
+        /* VERB copies R1 B — everything after the first space in R1.
+           When R1 B is empty, copy the literal marker *empty*. */
+        const r1 = (displayState.r1 || '').trim();
+        const sep = r1.indexOf(' ');
+        const r1b = sep === -1 ? '' : r1.slice(sep + 1).trim();
+        copyText(r1b || '*empty*');
+        updateMessage('R1B_COPY');
+
+      } else if (name === 'NOUN') {
+        /* NOUN copies: R1[0] uppercase + R1[1] lowercase + constant + trail */
+        const r1 = displayState.r1 || '';
+        copyText(r1.charAt(0).toUpperCase() + r1.charAt(1).toLowerCase() + constant + trail);
+        updateMessage('KY_COPY');
+
+      } else if (name === 'CLR') {
+        clearAllFields();
+        /* Unload the displayed entry without changing the resident log.
+           PROG 01 edits entry contents; CLR only removes them from view. */
+        currentEntry = null;
+        refreshDirty();
+        updateMessage('ENTRY_CLEAR');
+
+      } else if (name === 'PROG') {
+        /* Open numeric pad targeting the PROG display field (1–4 only) */
+        openNumpad('prog');
+
+      } else if (name === 'SAVE') {
+        saveCurrent();
+
+      } else if (name === 'ENTR') {
+        /* OFFL asks Save / Offload / Cancel; LOAD opens the file picker. */
+        if (loadedLog !== null) {
+          openExportSheet(loadedLog);
+        } else {
+          loadInput.click();
+        }
+      }
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* Keyboard activation wiring                                          */
+    /* ------------------------------------------------------------------ */
+    const activate = (k) => {
+      press(k);
+      setTimeout(() => release(k), PRESS_MS);
+    };
+
+    keys.forEach(k => {
+      k.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        k.setPointerCapture?.(e.pointerId);
+        press(k);
+        playFor(k);
+      });
+      k.addEventListener('pointerup', (e) => {
+        if (e.button !== 0) return;
+        activate(k);
+        handleKey(k);
+      });
+      k.addEventListener('pointercancel', () => release(k));
+      k.addEventListener('pointerleave', (e) => {
+        if (e.buttons === 0) release(k);
+      });
+      k.addEventListener('click', (e) => {
+        if (e.detail === 0) {
+          activate(k);
+          playFor(k);
+          handleKey(k);
+        }
+      });
+    });
+  })();
+</script>
+</body>
+</html>
