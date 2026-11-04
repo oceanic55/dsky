@@ -1,0 +1,319 @@
+## Fixing the floating overlay in iOS Safari
+
+I've examined your screenshots. The issue appears to be related to iOS Safari's floating bottom toolbar overlapping your webpage content, rather than a conventional HTML element being rendered incorrectly.
+
+The important clue is that the overlay contains Safari's own navigation controls: back, forward, share, bookmarks, and tabs.
+
+Your second screenshot shows the translucent toolbar sitting directly over the MacBook Pro page content, obscuring text and buttons. This is consistent with Safari's browser chrome overlapping the page's visible area.
+
+There are two separate issues to investigate:
+
+1. Safari's native browser toolbar — browser UI that your webpage cannot directly remove or control.
+2. Your webpage's viewport and layout — CSS positioning, viewport units, and safe-area handling that can cause content to appear underneath Safari's toolbar.
+
+The second issue is where you can make a meaningful fix.
+
+## 1. Identify what is actually causing the overlap
+
+Apple's own WebKit documentation explains that Safari's browser controls can overlap webpage content, and that websites must account for the changing safe area when positioning important content.&#x20;
+
+[image](https://www.google.com/s2/favicons?domain=https://developer.apple.com\&sz=32)
+
+Apple Developer+1
+
+
+
+Here is how to distinguish the two cases:
+
+| What you see                                             | Likely cause                                 |
+| -------------------------------------------------------- | -------------------------------------------- |
+| Safari's back, share, bookmarks and tabs icons           | Native Safari toolbar                        |
+| Your own navigation bar floating over the page           | `position: fixed` or `position: sticky`      |
+| Bottom of a full-screen section hidden                   | Incorrect `100vh` / viewport sizing          |
+| Buttons hidden behind Safari's toolbar                   | Missing bottom spacing or safe-area handling |
+| A gray or translucent strip that remains after scrolling | Safari browser chrome or viewport behavior   |
+
+Important: You cannot use CSS to remove Safari's native toolbar. You can, however, prevent your own content from being obscured by it.
+
+## 2. The recommended CSS fix
+
+For a typical responsive HTML page, start with this approach.
+
+### HTML
+
+Ensure your viewport declaration is present:
+
+```
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1, viewport-fit=cover"
+>
+```
+
+`viewport-fit=cover` allows your page to extend into the full display area, including areas around the device's safe area. It also makes safe-area environment variables available for layout adjustments.&#x20;
+
+[image](https://www.google.com/s2/favicons?domain=https://webkit.org\&sz=32)
+
+WebKit+1
+
+
+
+### CSS
+
+```
+/* Base layout */
+html {
+    min-height: 100%;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+}
+
+/* Main page content */
+main {
+    padding-bottom: calc(
+        24px + env(safe-area-inset-bottom, 0px)
+    );
+}
+
+/* Fixed bottom navigation */
+.bottom-navigation {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+
+    box-sizing: border-box;
+    z-index: 100;
+}
+```
+
+This provides three important improvements:
+
+- `100dvh` uses the dynamic viewport height, which can change as Safari's browser controls expand or collapse.
+- `env(safe-area-inset-bottom)` accounts for the device's bottom safe area.
+- The content receives enough padding to avoid having its last elements hidden behind a fixed navigation bar.
+
+Dynamic viewport units are designed to respond to changes in mobile browser UI, although Safari can still exhibit viewport-related edge cases.&#x20;
+
+[image](https://www.google.com/s2/favicons?domain=https://opus.ing\&sz=32)
+
+Opus+1
+
+
+
+## 3. If your page uses a full-screen application layout
+
+If you are building a mobile web app, dashboard, control panel, or full-screen interface, use a dedicated layout rather than relying on `100vh` everywhere.
+
+```
+<body>
+    <div class="app">
+
+        <header class="header">
+            Header
+        </header>
+
+        <main class="content">
+            Main content
+        </main>
+
+        <footer class="footer">
+            Bottom navigation
+        </footer>
+
+    </div>
+</body>
+```
+
+```
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    width: 100%;
+    min-height: 100%;
+}
+
+.app {
+    min-height: 100vh;
+    min-height: 100dvh;
+
+    display: flex;
+    flex-direction: column;
+}
+
+.header {
+    flex-shrink: 0;
+
+    padding-top: env(safe-area-inset-top, 0px);
+}
+
+.content {
+    flex: 1;
+    min-height: 0;
+
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+
+    padding-bottom: 24px;
+}
+
+.footer {
+    flex-shrink: 0;
+
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+```
+
+This layout keeps the footer in the normal document flow instead of forcing it to float over the content.
+
+For most websites, normal document flow is more reliable than a fixed footer when dealing with Safari's dynamically changing browser controls.
+
+## 4. If the overlay is caused by `position: fixed`
+
+This is one of the most common causes of the problem.
+
+For example, this can cause content to be obscured:
+
+```
+.navbar {
+    position: fixed;
+    bottom: 0;
+    height: 60px;
+}
+```
+
+A safer version is:
+
+```
+.navbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    min-height: 60px;
+
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+
+    background: rgba(255, 255, 255, 0.95);
+}
+```
+
+Then reserve space for the navigation bar in the content:
+
+```
+.page-content {
+    padding-bottom: calc(
+        60px + env(safe-area-inset-bottom, 0px)
+    );
+}
+```
+
+This prevents the final content from being hidden underneath your own navigation bar.
+
+However, if the element is Safari's native toolbar, this CSS will not reposition Safari itself.
+
+## 5. Why Apple.com appears to handle this better
+
+Apple's website is designed to work with Safari's changing browser interface.
+
+Its page can extend behind translucent browser controls, while its content layout and scrolling behavior are designed to accommodate those controls.
+
+Apple's WebKit guidance specifically recommends using safe-area environment variables to position content that could otherwise be obscured by browser UI.&#x20;
+
+[image](https://www.google.com/s2/favicons?domain=https://developer.apple.com\&sz=32)
+
+Apple Developer+1
+
+
+
+This means you should not necessarily try to eliminate the translucent effect.
+
+Instead, aim for these behaviors:
+
+- The page background can extend behind Safari's toolbar.
+- Important content remains visible and accessible.
+- Fixed controls do not overlap text or buttons.
+- Scrolling does not leave unexpected gaps.
+- The layout adapts when Safari's toolbar expands or collapses.
+
+## 6. Debug the problem on your actual iPhone
+
+If the issue persists, temporarily add this diagnostic code to your page:
+
+```
+<script>
+function reportViewport() {
+    console.table({
+        innerHeight: window.innerHeight,
+        outerHeight: window.outerHeight,
+        clientHeight: document.documentElement.clientHeight,
+        visualViewportHeight: window.visualViewport?.height,
+        visualViewportOffsetTop: window.visualViewport?.offsetTop,
+        scrollY: window.scrollY
+    });
+}
+
+window.addEventListener("resize", reportViewport);
+
+window.visualViewport?.addEventListener(
+    "resize",
+    reportViewport
+);
+
+reportViewport();
+</script>
+```
+
+This lets you compare the viewport dimensions as Safari's browser controls change.
+
+You can also temporarily outline all fixed and sticky elements:
+
+```
+*[style*="position: fixed"],
+*[style*="position: sticky"] {
+    outline: 2px solid red !important;
+}
+```
+
+For a more reliable inspection, use Safari Web Inspector on a Mac:
+
+1. Connect your iPhone to your Mac.
+2. Enable Web Inspector on the iPhone under Settings → Safari → Advanced.
+3. Open Safari on your Mac.
+4. Select Develop → your iPhone → your webpage.
+5. Inspect elements with `position: fixed`, `position: sticky`, `height: 100vh`, and `overflow: hidden`.
+
+## My recommendation
+
+Based on your screenshots, I would not attempt to hide or modify Safari's toolbar. I would first check whether your page has a full-screen wrapper, fixed navigation, or an element using `100vh`.
+
+The most likely practical solution is:
+
+```
+/* Replace fixed 100vh layouts */
+.page {
+    min-height: 100vh;
+    min-height: 100dvh;
+}
+
+/* Protect important bottom content */
+.page-content {
+    padding-bottom: calc(
+        24px + env(safe-area-inset-bottom, 0px)
+    );
+}
+```
+
+Then test with Safari's toolbar both expanded and collapsed.
+
