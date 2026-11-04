@@ -1,9 +1,0 @@
-**/*
-!/index.html
-!/img/
-!/img/**
-!/sd/
-!/sd/**
-!/chk/
-!/chk/**
-.DS_Store

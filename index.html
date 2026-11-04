@@ -52,10 +52,9 @@
     /* Body is transparent so the html gradient shows through everywhere,
        including the safe-area zone below the visible content. */
     background: transparent;
-    /* height: 100dvh pins the body to exactly the visible viewport height,
-       preventing it from stretching into the lvh overflow zone below the
-       stage and creating the blank strip that Safari's toolbar floats over. */
-    height: 100dvh;
+    /* min-height: 100dvh centers the panel in the actually-visible screen area
+       without pushing it down into the lvh overflow zone. */
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
     align-items: center;
