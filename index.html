@@ -962,17 +962,15 @@
 
   /* ================= Export sheet (OFFL) ================= */
 
-  .export-message {
-    margin: 4px 20px 0;
-    font-size: 15px;
-    line-height: 1.4;
-    color: #3c3c43;
-    text-align: center;
-  }
   .export-actions {
-    padding: 16px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 8px 20px 20px;
   }
-  .export-save {
+  .export-save,
+  .export-offload,
+  .export-cancel {
     appearance: none;
     -webkit-appearance: none;
     width: 100%;
@@ -988,7 +986,9 @@
     -webkit-tap-highlight-color: transparent;
     transition: background 80ms;
   }
-  .export-save:active { background: #0062cc; }
+  .export-save:active,
+  .export-offload:active,
+  .export-cancel:active { background: #0062cc; }
 </style>
 </head>
 <body>
@@ -1255,23 +1255,21 @@
 
   <!-- ============================================================
        Export sheet — opened by OFFL before the file is offloaded.
-       Save runs the export chain: native save dialog (Chromium),
-       then share sheet (iOS "Save to Files"), then download.
+       Save exports the file; Offload discards it; Cancel keeps it resident.
        ============================================================ -->
   <div class="numpad-sheet" id="export-sheet"
-       role="dialog" aria-modal="true" aria-label="Save file">
+       role="dialog" aria-modal="true" aria-label="Offload file">
 
     <div class="numpad-handle" aria-hidden="true"></div>
 
     <div class="numpad-bar">
-      <span class="numpad-title">SAVE FILE</span>
-      <button class="numpad-done" id="export-cancel" type="button">Cancel</button>
+      <span class="numpad-title">OFFLOAD FILE</span>
     </div>
 
-    <p class="export-message" id="export-message">Save “dsky.json”?</p>
-
     <div class="export-actions">
-      <button class="export-save" id="export-save" type="button">Save</button>
+      <button class="export-save" id="export-save" type="button">SAVE</button>
+      <button class="export-offload" id="export-offload" type="button">OFFLOAD</button>
+      <button class="export-cancel" id="export-cancel" type="button">CANCEL</button>
     </div>
 
   </div>
@@ -1456,8 +1454,8 @@
     const pickerList   = document.getElementById('picker-list');
     const pickerCancel = document.getElementById('picker-cancel');
     const exportSheet  = document.getElementById('export-sheet');
-    const exportMessage = document.getElementById('export-message');
     const exportSave   = document.getElementById('export-save');
+    const exportOffload = document.getElementById('export-offload');
     const exportCancel = document.getElementById('export-cancel');
 
     /* ------------------------------------------------------------------ */
@@ -1481,7 +1479,7 @@
     /* Name used when the resident log is offloaded as a file */
     let fileName = 'dsky.json';
 
-    /* Resident log waiting on the export sheet's Save / Cancel choice */
+    /* Resident log waiting on the export sheet's SAVE / OFFLOAD / CANCEL choice */
     let pendingExportLog = null;
 
     /* ------------------------------------------------------------------ */
@@ -1774,7 +1772,7 @@
     /* ------------------------------------------------------------------ */
     /* Offload the resident log (used by the OFFL key)                     */
     /* SAVE never triggers this — only the explicit offload does.           */
-    /* An in-app sheet offers Save / Cancel before anything leaves the app. */
+    /* The in-app sheet offers Save, Offload (discard), or Cancel. */
     /* ------------------------------------------------------------------ */
     const buildExportFile = (log) => {
       if (typeof File !== 'function') return null;
@@ -1820,7 +1818,6 @@
 
     const openExportSheet = (log) => {
       pendingExportLog = log;
-      exportMessage.textContent = 'Save “' + fileName + '”? You can choose where to save it next.';
       backdrop.classList.add('is-open');
       exportSheet.classList.add('is-open');
     };
@@ -1880,6 +1877,10 @@
     };
 
     exportSave.addEventListener('click', performExport);
+    exportOffload.addEventListener('click', () => {
+      closeExportSheet();
+      unloadFile();
+    });
     exportCancel.addEventListener('click', closeExportSheet);
     backdrop.addEventListener('pointerup', () => {
       if (exportSheet.classList.contains('is-open')) closeExportSheet();
@@ -2573,7 +2574,7 @@
         saveCurrent();
 
       } else if (name === 'ENTR') {
-        /* OFFL asks Save / Cancel before offloading; LOAD opens the file picker. */
+        /* OFFL asks Save / Offload / Cancel; LOAD opens the file picker. */
         if (loadedLog !== null) {
           openExportSheet(loadedLog);
         } else {
