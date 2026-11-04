@@ -342,7 +342,6 @@
   }
 
   .reg {
-    position: relative;      /* anchors the R3 picker overlay */
     display: flex;
     align-items: center;
     gap: 1.5px;
@@ -823,56 +822,131 @@
     letter-spacing: 0;
     font-weight: 300;
   }
-  /* ================= Entry picker (PROG 03 → R3 register) =============== */
-  /* A native <select> occupies the unused R3 register cells. iOS opens    */
-  /* the system wheel picker on tap — it scrolls natively — while Chrome   */
-  /* and Firefox also auto-open it through showPicker(). The control stays */
-  /* hidden until PROG 03 reveals it (or a selection is re-shown).         */
+  /* ================= Entry picker sheet (PROG 03) ================= */
 
-  .r3-picker {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
+  .picker-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 101;
+    background: #d1d1d6;
+    border-radius: 13px 13px 0 0;
+    box-shadow: 0 -2px 20px rgba(0,0,0,0.22);
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+    transform: translateY(100%);
+    transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+    touch-action: pan-y;
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
   }
-  .r3-picker[hidden] { display: none; }
+  .picker-sheet.is-open { transform: translateY(0); }
 
-  .entry-select {
+  .picker-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px 8px;
+    flex-shrink: 0;
+  }
+  .picker-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #3c3c43;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .picker-cancel {
     appearance: none;
     -webkit-appearance: none;
-    display: block;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    padding: 0 14px 0 6px;
-    border: 1px solid rgba(53, 211, 154, 0.45);
-    border-radius: 3px;
-    overflow: hidden;
-    background-color: rgba(16, 27, 22, 0.35);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0h8L4 5z' fill='%2335d39a'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 4px center;
-    background-size: 8px 5px;
-    color: #35d39a;
-    font-family: inherit;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    line-height: 1.2;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    border: none;
+    background: none;
+    font-size: 17px;
+    font-weight: 400;
+    color: #007aff;
     cursor: pointer;
+    padding: 4px 0 4px 16px;
     touch-action: manipulation;
-    outline: none;
     -webkit-tap-highlight-color: transparent;
   }
-  .entry-select:focus-visible { border-color: #35d39a; }
+  .picker-cancel:active { opacity: 0.5; }
 
-  @keyframes r3-picker-hint {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(53, 211, 154, 0); }
-    50%      { box-shadow: 0 0 0 3px rgba(53, 211, 154, 0.45); }
+  /* Scrollable entry list — momentum scrolling, bounded by the sheet */
+  .picker-list {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 0 12px 12px;
   }
-  .r3-picker.is-hint .entry-select {
-    animation: r3-picker-hint 900ms ease-in-out 3;
+
+  /* Inset grouped list, matching an iOS list picker */
+  .picker-group {
+    background: #ffffff;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  .picker-item {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    width: 100%;
+    background: transparent;
+    border-radius: 0;
+    margin: 0;
+    padding: 13px 16px;
+    min-height: 44px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    touch-action: pan-y;
+    -webkit-tap-highlight-color: transparent;
+    text-align: left;
+    border-bottom: 0.5px solid rgba(60, 60, 67, 0.29);
+    transition: background 80ms;
+  }
+  .picker-item:last-child { border-bottom: none; }
+  .picker-item:active { background: #e5e5ea; }
+
+  .picker-item-r1 {
+    flex: 1;
+    min-width: 0;
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 1.3;
+    color: #1c1c1e;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .picker-check {
+    flex-shrink: 0;
+    width: 20px;
+    text-align: right;
+    font-size: 17px;
+    font-weight: 600;
+    color: #007aff;
+    opacity: 0;
+  }
+  .picker-item.is-selected .picker-check { opacity: 1; }
+  .picker-item.is-selected .picker-item-r1 { font-weight: 500; }
+
+  .picker-empty {
+    padding: 18px 16px;
+    font-size: 15px;
+    color: #8e8e93;
+    text-align: center;
+    background: #ffffff;
+    border-radius: 10px;
   }
 
   /* ================= Export sheet (OFFL) ================= */
@@ -989,10 +1063,6 @@
                     <span class="reg-cell"></span><span class="reg-cell"></span>
                     <span class="reg-cell"></span><span class="reg-cell"></span>
                     <span class="reg-cell"></span>
-                    <!-- PROG 03 entry picker: native select over the register -->
-                    <div class="r3-picker" id="r3-picker" hidden>
-                      <select class="entry-select" id="entry-select" aria-label="Select entry"></select>
-                    </div>
                   </div>
                 </div>
 
@@ -1153,6 +1223,26 @@
   </div>
 
   <!-- ============================================================
+       Entry picker sheet — opened automatically by PROG 03
+       Lists R1 values from the loaded JSON, alphabetically
+       ============================================================ -->
+  <div class="picker-sheet" id="picker-sheet"
+       role="dialog" aria-modal="true" aria-label="Select entry">
+
+    <div class="numpad-handle" aria-hidden="true"></div>
+
+    <div class="picker-bar">
+      <span class="picker-title">SELECT ENTRY</span>
+      <button class="picker-cancel" id="picker-cancel" type="button">Cancel</button>
+    </div>
+
+    <div class="picker-list" id="picker-list">
+      <!-- Populated dynamically from loaded JSON log -->
+    </div>
+
+  </div>
+
+  <!-- ============================================================
        Export sheet — opened by OFFL before the file is offloaded.
        Save runs the export chain: native save dialog (Chromium),
        then share sheet (iOS "Save to Files"), then download.
@@ -1291,7 +1381,10 @@
     /* <select>: iOS opens the system wheel (native scrolling), and the OS */
     /* save/share dialogs are outside the page — neither needs an exemption.*/
     /* ------------------------------------------------------------------ */
-    document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('touchmove', (e) => {
+      if (e.target.closest && e.target.closest('.picker-list')) return;
+      e.preventDefault();
+    }, { passive: false });
     document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
     document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
 
@@ -1345,16 +1438,16 @@
     const r3Cells     = r3Row.querySelectorAll('.reg-cell:not(.sign)');
     const compRedy    = document.getElementById('comp-redy');     /* COMP REDY panel */
 
-    /* Backdrop and sheet refs — declared early, used by numpad, alpha, and export */
+    /* Backdrop and sheet refs — declared early, used by numpad, alpha, and picker */
     const backdrop     = document.getElementById('numpad-backdrop');
     const sheet        = document.getElementById('numpad-sheet');
+    const pickerSheet  = document.getElementById('picker-sheet');
+    const pickerList   = document.getElementById('picker-list');
+    const pickerCancel = document.getElementById('picker-cancel');
     const exportSheet  = document.getElementById('export-sheet');
     const exportMessage = document.getElementById('export-message');
     const exportSave   = document.getElementById('export-save');
     const exportCancel = document.getElementById('export-cancel');
-    /* R3 entry picker (PROG 03) — native <select> in the register row */
-    const r3Picker     = document.getElementById('r3-picker');
-    const entrySelect  = document.getElementById('entry-select');
 
     /* ------------------------------------------------------------------ */
     /* Display state — single source of truth for all field values         */
@@ -1617,11 +1710,9 @@
       displayState.verb = '';
       displayState.noun = '';
       displayState.prog = '';
-      /* Clear R2 and R3 (and hide the R3 entry picker) */
+      /* Clear R2 and R3 */
       renderR2();
       clearRx(r3Cells, 'r3');
-      r3Picker.hidden = true;
-      entrySelect.innerHTML = '';
       syncOfflBtn();
       /* clearAllFields does NOT affect loadedLog or COMP REDY */
     };
@@ -1789,53 +1880,11 @@
     updateMessage('NO_FILE');
 
     /* ------------------------------------------------------------------ */
-    /* Entry picker — native <select> inside the unused R3 register        */
-    /* (revealed automatically by PROG 03). iOS opens the system wheel on  */
-    /* tap and scrolls it natively; Chrome / Firefox auto-open through     */
-    /* showPicker() when transient activation allows.                      */
+    /* Entry picker (opened automatically by PROG 03)                      */
     /* ------------------------------------------------------------------ */
-    const populateEntryPicker = (selectedTs) => {
-      entrySelect.innerHTML = '';
-
-      const addOption = (value, label) => {
-        const opt = document.createElement('option');
-        opt.value = value;
-        opt.textContent = label;
-        entrySelect.appendChild(opt);
-      };
-
-      if (!loadedLog) {
-        addOption('', 'NO FILE');
-      } else if (!loadedLog.log.length) {
-        addOption('', 'NO ENTRIES');
-      } else {
-        addOption('', 'SELECT ENTRY…');
-        [...loadedLog.log].sort(compareEntries).forEach((entry) => {
-          addOption(entry.timestamp, entry.r1);
-        });
-        if (selectedTs && loadedLog.log.some((e) => e.timestamp === selectedTs)) {
-          entrySelect.value = selectedTs;
-        }
-      }
-    };
-
-    const revealEntryPicker = (selectedTs, hint) => {
-      populateEntryPicker(selectedTs);
-      r3Picker.hidden = false;
-      r3Picker.classList.remove('is-hint');
-      if (hint) {
-        void r3Picker.offsetWidth;   /* restart the pulse animation */
-        r3Picker.classList.add('is-hint');
-      }
-    };
-
-    const openPicker = () => {
-      revealEntryPicker(currentEntry ? currentEntry.timestamp : '', true);
-      /* Safari has no showPicker(): the pulse invites a tap on R3, which
-         opens the native wheel. Chrome / Firefox open it immediately. */
-      if (typeof entrySelect.showPicker === 'function') {
-        try { entrySelect.showPicker(); } catch (_) {}
-      }
+    const closePicker = () => {
+      backdrop.classList.remove('is-open');
+      pickerSheet.classList.remove('is-open');
     };
 
     const selectEntry = (entry) => {
@@ -1847,19 +1896,81 @@
       currentEntry = entry;
       refreshDirty();   /* orange — entry loaded, nothing unsaved */
       syncOfflBtn();
-      revealEntryPicker(entry.timestamp, false);
-
+      closePicker();
+      
       // Update message with R1 B content
       const r1Parts = (entry.r1 || '').split(' ');
       const r1b = r1Parts.length > 1 ? r1Parts.slice(1).join(' ') : '';
       updateMessage('ENTRY_LOADED', { r1bContent: r1b });
     };
 
-    entrySelect.addEventListener('change', () => {
-      const ts = entrySelect.value;
-      if (!ts || !loadedLog) return;
-      const entry = loadedLog.log.find((e) => e.timestamp === ts);
-      if (entry) selectEntry(entry);
+    const openPicker = () => {
+      pickerList.innerHTML = '';
+
+      if (!loadedLog || !loadedLog.log.length) {
+        const empty = document.createElement('div');
+        empty.className = 'picker-empty';
+        empty.textContent = loadedLog ? 'No entries' : 'No file loaded';
+        pickerList.appendChild(empty);
+        backdrop.classList.add('is-open');
+        pickerSheet.classList.add('is-open');
+        return;
+      }
+
+      /* Grouped list, matching an iOS list picker: predictable alphabetical
+         order, one row per entry, a checkmark on the loaded entry. */
+      const group = document.createElement('div');
+      group.className = 'picker-group';
+      group.setAttribute('role', 'listbox');
+      group.setAttribute('aria-label', 'Entries');
+
+      const entries = [...loadedLog.log].sort(compareEntries);
+      entries.forEach((entry) => {
+        const btn = document.createElement('button');
+        btn.className = 'picker-item';
+        btn.type = 'button';
+        btn.setAttribute('role', 'option');
+        btn.setAttribute('aria-label', entry.r1);
+
+        const isSelected = currentEntry !== null &&
+          entry.timestamp === currentEntry.timestamp;
+        if (isSelected) btn.classList.add('is-selected');
+        btn.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+
+        const label = document.createElement('span');
+        label.className = 'picker-item-r1';
+        label.textContent = entry.r1;   /* full R1 A + R1 B, nothing else */
+
+        const check = document.createElement('span');
+        check.className = 'picker-check';
+        check.setAttribute('aria-hidden', 'true');
+        check.textContent = '✓';
+
+        btn.append(label, check);
+        btn.addEventListener('click', () => selectEntry(entry));
+        group.appendChild(btn);
+      });
+
+      pickerList.appendChild(group);
+      backdrop.classList.add('is-open');
+      pickerSheet.classList.add('is-open');
+
+      /* Keep the loaded entry visible when the list opens. */
+      requestAnimationFrame(() => {
+        const selected = pickerList.querySelector('.picker-item.is-selected');
+        if (!selected) return;
+        const listRect = pickerList.getBoundingClientRect();
+        const rowRect  = selected.getBoundingClientRect();
+        pickerList.scrollTop += rowRect.top - listRect.top -
+          (pickerList.clientHeight - rowRect.height) / 2;
+      });
+    };
+
+    pickerCancel.addEventListener('click', closePicker);
+
+    /* Backdrop tap closes picker (same guard pattern as numpad/alpha) */
+    backdrop.addEventListener('pointerup', () => {
+      if (pickerSheet.classList.contains('is-open')) closePicker();
     });
 
     /* ------------------------------------------------------------------ */
@@ -2383,9 +2494,6 @@
         renderR2();
         syncCompRedy();
         syncOfflBtn();
-        /* Keep an open R3 picker in sync — SAVE regenerates timestamps. */
-        if (!r3Picker.hidden) populateEntryPicker('');
-
         // Show success message
         updateMessage('ENTRY_SAVED');
       } catch (error) {
