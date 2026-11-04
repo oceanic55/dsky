@@ -29,14 +29,16 @@
     margin: 0;
     padding: 0;
     width: 100%;
-    height: 100%;
-    /* Prevent any scrolling / rubber-band bounce outside the panel */
-    overflow: hidden;
-    overscroll-behavior: none;
-    -webkit-overflow-scrolling: auto;
   }
 
   html {
+    /* overscroll-behavior blocks rubber-band bounce on the root.
+       overflow must remain scrollable (not hidden) so the body background
+       extends behind Safari's translucent bottom toolbar.
+       min-height: 100lvh ensures the root reaches the physical screen edge
+       including the safe-area zone, eliminating the white safe-area gap. */
+    overscroll-behavior: none;
+    min-height: 100lvh;
     background-color: #d4d3d5;
   }
 
@@ -45,15 +47,18 @@
                  "Helvetica Neue", Arial, sans-serif;
     color: #292931;
     background: radial-gradient(circle at 50% 0%, #dedde0 0%, #d4d3d5 45%, #c2c1c5 100%);
-    height: 100vh;
-    height: 100dvh;
+    background-color: #d4d3d5; /* solid fallback for Safari chrome sampler & overscroll */
+    /* min-height: 100dvh centers the panel in the actually-visible screen area.
+       The html element (min-height: 100lvh) extends the gray background to the
+       physical screen edge so Safari can composite it through the translucent
+       bottom toolbar — no white gap. Body uses dvh so justify-content:center
+       aligns the panel to the visible viewport, not the larger lvh box which
+       would push it too low. */
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    /* Safe-area insets for notch / home-bar on iPhone */
-    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
-             env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
     touch-action: none;          /* block pan & pinch-zoom at the body level */
   }
 
@@ -518,7 +523,10 @@
   /* SAVE key shares the red keycap tint with the base RSET styling above */
 
   /* Full-screen backdrop — blurs content behind, dims slightly */
+  /* Closed: display:none removes it from Safari 26's chrome-tint sampler.
+     opacity:0 alone is still sampled and causes a dark bottom bar at rest. */
   .numpad-backdrop {
+    display: none;
     position: fixed;
     inset: 0;
     z-index: 100;
@@ -530,6 +538,7 @@
     transition: opacity 260ms ease;
   }
   .numpad-backdrop.is-open {
+    display: block;
     opacity: 1;
     pointer-events: auto;
   }
@@ -1006,6 +1015,7 @@
   .export-save:active { background: #28b882; }
   .export-offload:active { background: #2e2d2d; }
   .export-cancel:active { background: #cec7c7; }
+
 </style>
 </head>
 <body>
@@ -1475,6 +1485,32 @@
     const exportOffload = document.getElementById('export-offload');
     const exportCancel = document.getElementById('export-cancel');
 
+    /* ------------------------------------------------------------------
+       Safari 26 backdrop helpers.
+       The backdrop uses display:none when closed so Safari's Liquid Glass
+       chrome-tint sampler cannot read its dark background at the viewport
+       edge (opacity:0 alone is still sampled and produces a dark bottom bar
+       at rest). We must add display:block one frame BEFORE the opacity
+       transition starts, and defer the display:none until after the
+       opacity-out transition ends.
+    ------------------------------------------------------------------ */
+    const openBackdrop = () => {
+      backdrop.style.display = 'block';   /* enter render tree */
+      void backdrop.offsetWidth;          /* force reflow so transition fires */
+      backdrop.classList.add('is-open');
+    };
+
+    const closeBackdrop = () => {
+      backdrop.classList.remove('is-open');
+      /* Remove from render tree once the opacity-out transition finishes */
+      backdrop.addEventListener('transitionend', function handler() {
+        if (!backdrop.classList.contains('is-open')) {
+          backdrop.style.display = '';
+        }
+        backdrop.removeEventListener('transitionend', handler);
+      });
+    };
+
     /* ------------------------------------------------------------------ */
     /* Display state — single source of truth for all field values         */
     /* ------------------------------------------------------------------ */
@@ -1502,14 +1538,24 @@
     /* ------------------------------------------------------------------ */
     /* Message state management                                            */
     /* ------------------------------------------------------------------ */
+    const htmlModifiedStamp = (() => {
+      const modifiedAt = new Date(document.lastModified);
+      if (Number.isNaN(modifiedAt.getTime())) return '';
+      const monthInitial = modifiedAt.toLocaleString('en-US', { month: 'long' }).charAt(0).toUpperCase();
+      const day = String(modifiedAt.getDate()).padStart(2, '0');
+      const hours = String(modifiedAt.getHours()).padStart(2, '0');
+      const minutes = String(modifiedAt.getMinutes()).padStart(2, '0');
+      return `${monthInitial}${day}${hours}:${minutes}`;
+    })();
+
     const messageState = {
       current: 'NO_FILE',
       previous: null,
       timeoutId: null,
       
       STATES: {
-        NO_FILE: 'AGC DSKY Mini - No File',
-        FILE_LOADED: 'AGC DSKY Mini - {fileName}',
+        NO_FILE: '{modifiedStamp} DSKY MINI - NO FILE',
+        FILE_LOADED: '{modifiedStamp} DSKY MINI - {fileName}',
         ENTRY_SAVED: 'ENTRY SAVED',
         SAVE_ERROR: 'SAVE ERROR',
         R1_NOT_SAVED: 'R1 NOT SAVED',
@@ -1589,6 +1635,9 @@
       
       // Get message text
       let message = messageState.STATES[state];
+      if (message.includes('{modifiedStamp}')) {
+        message = message.replace('{modifiedStamp}', htmlModifiedStamp);
+      }
       if (state === 'FILE_LOADED' && data.fileName) {
         message = message.replace('{fileName}', data.fileName);
       } else if (state === 'ENTRY_LOADED' && data.r1bContent) {
@@ -1813,7 +1862,7 @@
     };
 
     const closeExportSheet = () => {
-      backdrop.classList.remove('is-open');
+      closeBackdrop();
       exportSheet.classList.remove('is-open');
       pendingExportLog = null;
     };
@@ -1835,7 +1884,7 @@
 
     const openExportSheet = (log) => {
       pendingExportLog = log;
-      backdrop.classList.add('is-open');
+      openBackdrop();
       exportSheet.classList.add('is-open');
     };
 
@@ -1912,7 +1961,7 @@
     /* Entry picker (opened automatically by PROG 03)                      */
     /* ------------------------------------------------------------------ */
     const closePicker = () => {
-      backdrop.classList.remove('is-open');
+      closeBackdrop();
       pickerSheet.classList.remove('is-open');
     };
 
@@ -1941,7 +1990,7 @@
         empty.className = 'picker-empty';
         empty.textContent = loadedLog ? 'No entries' : 'No file loaded';
         pickerList.appendChild(empty);
-        backdrop.classList.add('is-open');
+        openBackdrop();
         pickerSheet.classList.add('is-open');
         return;
       }
@@ -1981,7 +2030,7 @@
       });
 
       pickerList.appendChild(group);
-      backdrop.classList.add('is-open');
+      openBackdrop();
       pickerSheet.classList.add('is-open');
 
       /* Keep the loaded entry visible when the list opens. */
@@ -2033,7 +2082,7 @@
       sheetTitle.textContent = target.toUpperCase();
       sheet.setAttribute('aria-label', 'Enter ' + target.toUpperCase() + ' code');
       updatePips();
-      backdrop.classList.add('is-open');
+      openBackdrop();
       sheet.classList.add('is-open');
       numpadInput.value = '';
       numpadInput.focus();   /* capture physical keyboard — synchronous in gesture handler */
@@ -2041,7 +2090,7 @@
     };
 
     const closeNumpad = () => {
-      backdrop.classList.remove('is-open');
+      closeBackdrop();
       sheet.classList.remove('is-open');
       numpadTarget = null;
     };
@@ -2212,7 +2261,7 @@
       alphaInputB.value = sep === -1 ? '' : initial.slice(sep + 1);
       alphaTitle.textContent = 'R1';
       syncAlphaCaps();
-      backdrop.classList.add('is-open');
+      openBackdrop();
       alphaSheet.classList.add('is-open');
       setTimeout(() => {
         alphaInputA.focus();
@@ -2223,7 +2272,7 @@
     const closeAlpha = () => {
       alphaInputA.blur();
       alphaInputB.blur();
-      backdrop.classList.remove('is-open');
+      closeBackdrop();
       alphaSheet.classList.remove('is-open');
     };
 
@@ -2298,7 +2347,7 @@
       `;
 
       document.body.appendChild(modal);
-      backdrop.classList.add('is-open');
+      openBackdrop();
 
       /* Show modal with animation */
       setTimeout(() => {
@@ -2330,7 +2379,7 @@
       };
 
       const closeConstantEditor = () => {
-        backdrop.classList.remove('is-open');
+        closeBackdrop();
         modal.style.transform = 'translateY(100%)';
         modal.classList.remove('is-open');
         setTimeout(() => modal.remove(), 320);
@@ -2408,7 +2457,7 @@
       `;
 
       document.body.appendChild(modal);
-      backdrop.classList.add('is-open');
+      openBackdrop();
 
       setTimeout(() => {
         modal.classList.add('is-open');
@@ -2419,7 +2468,7 @@
       const doneBtn = document.getElementById('newfile-done');
 
       const closeNewFile = () => {
-        backdrop.classList.remove('is-open');
+        closeBackdrop();
         modal.style.transform = 'translateY(100%)';
         modal.classList.remove('is-open');
         setTimeout(() => modal.remove(), 320);
@@ -2634,5 +2683,6 @@
     });
   })();
 </script>
+
 </body>
 </html>
