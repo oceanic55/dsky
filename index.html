@@ -826,15 +826,22 @@
 
   .picker-sheet {
     position: fixed;
-    left: 0;
-    right: 0;
+    left: 50%;
+    right: auto;
     bottom: 0;
     z-index: 101;
+    /* Keep the drawer aligned with the DSKY panel instead of the whole
+       desktop viewport. The panel is wider than the stage: 274 px stage +
+       2 × 40 px side padding + 2 px border. 20% extra width keeps typical
+       R1 entries on one line. On mobile the stage is nearly full-width,
+       so this remains close to the previous appearance. */
+    width: 100%;
+    max-width: calc(427px * var(--s));
     background: #d1d1d6;
     border-radius: 13px 13px 0 0;
     box-shadow: 0 -2px 20px rgba(0,0,0,0.22);
     padding: 0 0 env(safe-area-inset-bottom, 0px);
-    transform: translateY(100%);
+    transform: translate(-50%, 100%);
     transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
     touch-action: pan-y;
     max-height: 70vh;
@@ -842,7 +849,7 @@
     flex-direction: column;
     user-select: none;
   }
-  .picker-sheet.is-open { transform: translateY(0); }
+  .picker-sheet.is-open { transform: translate(-50%, 0); }
 
   .picker-bar {
     display: flex;
@@ -876,6 +883,8 @@
   /* Scrollable entry list — momentum scrolling, bounded by the sheet */
   .picker-list {
     overflow-y: auto;
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* legacy Edge / IE */
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     touch-action: pan-y;
@@ -883,6 +892,8 @@
     min-height: 0;
     padding: 0 12px 12px;
   }
+  /* Hide the scrollbar but keep the list scrollable */
+  .picker-list::-webkit-scrollbar { display: none; }
 
   /* Inset grouped list, matching an iOS list picker */
   .picker-group {
