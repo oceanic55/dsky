@@ -1,0 +1,56 @@
+tier1: amp
+tier2: robertolowe317@gmail.com
+
+tier1: Cloudflare
+tier2: Reinholdmess444 git
+
+tier1:cursor
+tier2:rushod@pm.me
+joaodopan@proton.me git
+dev000000@proton.me git
+naomiuemura@proton.me git
+dev00three@proton.me git
+kirkthomasson@proton.me git
+
+tier1:Discord
+tier2:roblowe317 pm
+
+tier1:elevenlabs.io
+tier2:rushod@pm.me
+dev00one@proton.me
+
+tier1:github
+tier2:dev00one@proton.me
+dev000000@proton.me
+lawmkr@proton.me
+rich00endricks@proton.me
+rushod@pm.me
+
+tier1:groq
+tier2:redraw4k
+rushod git 
+dev000000
+dev00one@proton.me
+
+tier1:here
+tier2:hanxdlee@icloud.com
+
+tier1:hermes
+tier2:henricharriere555@proton.me
+naomiuemura@proton.me git
+
+
+tier1:Ollama
+tier2:reinholdmess444 git
+sanmiguelzerozero git
+rushod git
+
+tier1:openai
+tier2:lawmkr@proton.me 
+
+tier1: Supabase
+tier2:dev00one git 
+
+tier1: openrouter
+tier2:wred.shiftless125@aleeas.com
+rushod@pm.me

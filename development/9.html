@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>DSKY</title>
+<style>
+  /* ============================================================
+     DSKY display panel + 3×2 keypad
+     Mobile-first: fits iPhone 13 (390 × 844 pt) in Safari without
+     overflow, bounce-scroll, or user zoom.
+     ============================================================ */
+
+  :root {
+    /*
+      Stage is 274 × 561 pt (intrinsic app points).
+      Scale so the stage width fills the viewport with 20 pt side
+      padding on each side: --s = (100vw - 40px) / 274px
+      min() keeps it ≤ 1.0 on larger screens so it never blows up.
+      On iPhone 13 (390px wide): (390-40)/274 ≈ 1.277
+    */
+    --s: min(1.0, calc((100vw - 40px) / 274px));
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    /* Prevent any scrolling / rubber-band bounce outside the panel */
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: auto;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                 "Helvetica Neue", Arial, sans-serif;
+    color: #292931;
+    background: radial-gradient(circle at 50% 0%, #dedde0 0%, #d4d3d5 45%, #c2c1c5 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    /* Safe-area insets for notch / home-bar on iPhone */
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+             env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    touch-action: none;          /* block pan & pinch-zoom at the body level */
+  }
+
+  /* Single centred column — no right panel */
+  .page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ---------------- Panel bezel ---------------- */
+  .panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: calc(18px * var(--s));
+    padding: calc(32px * var(--s)) calc(40px * var(--s)) calc(26px * var(--s));
+    border-radius: calc(14px * var(--s));
+    background: linear-gradient(180deg, #d4d3d5 0%, #c2c1c5 100%);
+    border: 1px solid #77777b;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,.55) inset,
+      0 18px 40px rgba(0,0,0,.22),
+      0 2px 6px rgba(0,0,0,.18);
+    /* Prevent the panel itself from being scrolled or overflowing */
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  .caption {
+    font-size: calc(11px * var(--s));
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: #77777b;
+    user-select: none;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  /* ---------------- Scaled stage (uniform, like the app) ---------------- */
+  .viewport {
+    position: relative;
+    width: calc(274px * var(--s));
+    height: calc(561px * var(--s));
+    flex: 0 0 auto;
+    overflow: hidden;
+  }
+
+  .stage {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 274px;
+    height: 561px;
+    transform: scale(var(--s));
+    transform-origin: top left;
+  }
+
+  .board {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 25px;
+  }
+
+  /* ================= Display panel ================= */
+  .display {
+    position: relative;
+    width: 201px;
+    height: 341px;
+  }
+
+  .bezel {
+    position: absolute;
+    inset: 0;
+    border-radius: 9px;
+    background: #b8b7bb;
+    box-shadow: inset 0 0 0 4px #29292e;
+  }
+
+  .screen {
+    position: absolute;
+    left: 6px;
+    top: 6px;
+    width: 189px;
+    height: 329px;
+    border-radius: 5px;
+    background: linear-gradient(180deg, #555342 0%, #77765a 100%);
+    overflow: hidden;
+  }
+  .screen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 5px;
+    box-shadow: inset 0 0 0 4px #262622;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .comp-acty {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    width: 52px;
+    height: 42px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 10.08px;
+    font-weight: 700;
+    line-height: 12px;
+    color: #2a3a2e;
+  }
+
+  .dot {
+    position: absolute;
+    left: 91px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #e7e5dc;
+  }
+  .dot::after {
+    content: "";
+    position: absolute;
+    inset: 30%;
+    border-radius: 50%;
+    background: #fffdf5;
+  }
+  .dot.d1 { top: 12px; }
+  .dot.d2 { top: 76px; }
+  .dot.d3 { top: 139px; }
+
+  .two-digit {
+    position: absolute;
+    width: 59.5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .two-digit.prog { left: 118px; top: 6px; }
+  .two-digit.verb { left: 14px;  top: 86px; }
+  .two-digit.noun { left: 108px; top: 86px; }
+
+  .pill {
+    width: 59.5px;
+    padding: 1.5px 0;
+    border-radius: 1.5px;
+    background: #35d39a;
+    color: #101b16;
+    font-size: 7.5px;
+    font-weight: 700;
+    line-height: 9px;
+    letter-spacing: 0.5px;
+    text-align: center;
+  }
+
+  .digits {
+    margin-top: 2px;
+    padding: 2px 3px;
+    display: flex;
+    gap: 1.5px;
+  }
+  .digit {
+    width: 26px;
+    height: 30px;
+    overflow: hidden;
+  }
+  .digit svg {
+    display: block;
+    width: 26px;
+    height: 30px;
+  }
+  .seg { fill: #35d39a; }
+
+  .sep {
+    position: absolute;
+    left: 8px;
+    width: 173px;
+    height: 1.4px;
+    border-radius: 0.7px;
+    background: #35d39a;
+  }
+  .sep.s1 { top: 148px; }
+  .sep.s2 { top: 204px; }
+  .sep.s3 { top: 260px; }
+
+  .reg-row {
+    position: absolute;
+    left: 8px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .reg-row.r1 { top: 153px; }
+  .reg-row.r2 { top: 208px; }
+  .reg-row.r3 { top: 263px; }
+
+  .reg-label {
+    width: 12px;
+    font-size: 7px;
+    font-weight: 700;
+    text-align: center;
+    color: #9fb3a4;
+  }
+
+  .reg {
+    display: flex;
+    align-items: center;
+    gap: 1.5px;
+    padding: 3px 4px;
+    height: 31px;
+  }
+  .reg-cell {
+    height: 25px;
+    width: 22px;
+  }
+  .reg-cell.sign { width: 12.1px; }
+
+  /* ================= Keypad ================= */
+  .keypad {
+    position: relative;
+    padding: 26px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 68px);
+    grid-auto-rows: 68px;
+    gap: 7px 9px;
+    justify-items: center;
+    align-items: center;
+  }
+
+  .screw {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    overflow: hidden;
+    pointer-events: none;
+    box-shadow: 0 1.1px 2.2px rgba(0, 0, 0, 0.35);
+  }
+  .screw img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: rotate(var(--slot, 0deg)) scale(1.14);
+    transform-origin: 50% 50%;
+  }
+  .screw.tl { left:  0; top:    0; --slot: -28deg; }
+  .screw.tr { right: 0; top:    0; --slot:  74deg; }
+  .screw.bl { left:  0; bottom: 0; --slot:  35deg; }
+  .screw.br { right: 0; bottom: 0; --slot: -12deg; }
+
+  /* ---------------- Keys ---------------- */
+  .k {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    outline: none;
+
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: var(--w);
+    height: 68px;
+    border-radius: calc(var(--w) * 0.075);
+
+    transform: scale(1);
+    transition: transform 70ms ease-out, box-shadow 70ms ease-out;
+    box-shadow: 0 calc(var(--w) * 0.04) calc(var(--w) * 0.05) rgba(0,0,0,.65);
+  }
+
+  .k.verb, .k.noun { --w: 68px; }
+  .k.clr,  .k.stby { --w: 65px; }
+  .k.entr, .k.rset { --w: 64px; }
+
+  .k.verb, .k.noun {
+    --c1: #0a1e0a;
+    --c2: rgba(10, 30, 10, 0.6);
+    --p1: rgba(10, 30, 10, 0.6);
+    --p2: rgba(10, 30, 10, 0.36);
+  }
+  .k.clr, .k.stby {
+    --c1: #101015;
+    --c2: #030306;
+    --p1: rgba(16, 16, 21, 0.6);
+    --p2: rgba(3, 3, 6, 0.6);
+  }
+  .k.entr, .k.rset {
+    --c1: #1e0a0a;
+    --c2: rgba(30, 10, 10, 0.6);
+    --p1: rgba(30, 10, 10, 0.6);
+    --p2: rgba(30, 10, 10, 0.36);
+  }
+
+  .k .key-face {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(180deg, var(--c1), var(--c2));
+    border: calc(var(--w) * 0.045) solid #24242a;
+  }
+
+  .k .key-face::before {
+    content: "";
+    position: absolute;
+    inset: calc(var(--w) * 0.06);
+    border-radius: calc(var(--w) * 0.052);
+    border: 0.5px solid #08080b;
+  }
+
+  .k .key-bevel {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.09) 0%,
+      rgba(255, 255, 255, 0) 40%
+    );
+    pointer-events: none;
+  }
+
+  .k .key-label {
+    position: relative;
+    font-size: calc(var(--w) * 0.21);
+    font-weight: 700;
+    line-height: 1;
+    color: #e1e0dc;
+    letter-spacing: 0.01em;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .k.is-pressed {
+    transform: scale(0.93);
+    box-shadow: 0 0 calc(var(--w) * 0.05) rgba(0,0,0,.65);
+  }
+  .k.is-pressed .key-face {
+    background: linear-gradient(180deg, var(--p1), var(--p2));
+  }
+  .k.is-pressed .key-bevel {
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.03) 0%,
+      rgba(255, 255, 255, 0) 40%
+    );
+  }
+
+  .k:focus-visible {
+    box-shadow:
+      0 calc(var(--w) * 0.04) calc(var(--w) * 0.05) rgba(0,0,0,.65),
+      0 0 0 2px rgba(53, 211, 154, 0.55);
+  }
+</style>
+</head>
+<body>
+
+  <div class="page">
+
+    <main class="panel">
+      <div class="viewport">
+        <div class="stage">
+          <div class="board">
+
+            <!-- Display panel -->
+            <div class="display" role="img"
+                 aria-label="DSKY display: PROG blank, VERB 16, NOUN 36">
+              <div class="bezel"></div>
+              <div class="screen">
+
+                <div class="comp-acty"><span>COMP</span><span>ACTY</span></div>
+
+                <span class="dot d1"></span>
+                <span class="dot d2"></span>
+                <span class="dot d3"></span>
+
+                <!-- PROG (blank digits) -->
+                <div class="two-digit prog">
+                  <div class="pill">PROG</div>
+                  <div class="digits">
+                    <div class="digit"></div>
+                    <div class="digit"></div>
+                  </div>
+                </div>
+
+                <!-- VERB 16 -->
+                <div class="two-digit verb">
+                  <div class="pill">VERB</div>
+                  <div class="digits">
+                    <div class="digit">
+                      <svg viewBox="0 0 26 30" aria-hidden="true">
+                        <polygon class="seg" points="23.5,0 27.2,0 23.3,14.7 19.6,14.7"/>
+                        <polygon class="seg" points="19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6"/>
+                      </svg>
+                    </div>
+                    <div class="digit">
+                      <svg viewBox="0 0 26 30" aria-hidden="true">
+                        <polygon class="seg" points="8.3,0 22.6,0 21.6,3.6 10.8,3.6"/>
+                        <polygon class="seg" points="7.6,0.6 3.8,14.7 7.5,14.7 10.3,4.3"/>
+                        <polygon class="seg" points="8.8,13.2 19.1,13.2 18.1,17.1 7.8,17.1"/>
+                        <polygon class="seg" points="19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6"/>
+                        <polygon class="seg" points="3.6,15.6 0,29.3 4.6,25.7 7.3,15.6"/>
+                        <polygon class="seg" points="0.5,30 18.7,30 15.8,26.1 5.5,26.1"/>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- NOUN 36 -->
+                <div class="two-digit noun">
+                  <div class="pill">NOUN</div>
+                  <div class="digits">
+                    <div class="digit">
+                      <svg viewBox="0 0 26 30" aria-hidden="true">
+                        <polygon class="seg" points="8.3,0 22.6,0 21.6,3.6 10.8,3.6"/>
+                        <polygon class="seg" points="23.5,0 27.2,0 23.3,14.7 19.6,14.7"/>
+                        <polygon class="seg" points="8.8,13.2 19.1,13.2 18.1,17.1 7.8,17.1"/>
+                        <polygon class="seg" points="19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6"/>
+                        <polygon class="seg" points="0.5,30 18.7,30 15.8,26.1 5.5,26.1"/>
+                      </svg>
+                    </div>
+                    <div class="digit">
+                      <svg viewBox="0 0 26 30" aria-hidden="true">
+                        <polygon class="seg" points="8.3,0 22.6,0 21.6,3.6 10.8,3.6"/>
+                        <polygon class="seg" points="7.6,0.6 3.8,14.7 7.5,14.7 10.3,4.3"/>
+                        <polygon class="seg" points="8.8,13.2 19.1,13.2 18.1,17.1 7.8,17.1"/>
+                        <polygon class="seg" points="19.4,15.6 16.7,25.8 19.4,29.5 23.1,15.6"/>
+                        <polygon class="seg" points="3.6,15.6 0,29.3 4.6,25.7 7.3,15.6"/>
+                        <polygon class="seg" points="0.5,30 18.7,30 15.8,26.1 5.5,26.1"/>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                <span class="sep s1"></span>
+                <span class="sep s2"></span>
+                <span class="sep s3"></span>
+
+                <div class="reg-row r1">
+                  <span class="reg-label">R1</span>
+                  <div class="reg">
+                    <span class="reg-cell sign"></span>
+                    <span class="reg-cell"></span><span class="reg-cell"></span>
+                    <span class="reg-cell"></span><span class="reg-cell"></span>
+                    <span class="reg-cell"></span>
+                  </div>
+                </div>
+
+                <div class="reg-row r2">
+                  <span class="reg-label">R2</span>
+                  <div class="reg">
+                    <span class="reg-cell sign"></span>
+                    <span class="reg-cell"></span><span class="reg-cell"></span>
+                    <span class="reg-cell"></span><span class="reg-cell"></span>
+                    <span class="reg-cell"></span>
+                  </div>
+                </div>
+
+                <div class="reg-row r3">
+                  <span class="reg-label">R3</span>
+                  <div class="reg">
+                    <span class="reg-cell sign"></span>
+                    <span class="reg-cell"></span><span class="reg-cell"></span>
+                    <span class="reg-cell"></span><span class="reg-cell"></span>
+                    <span class="reg-cell"></span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Keypad 3 × 2 -->
+            <div class="keypad">
+
+              <div class="grid">
+                <button class="k verb" type="button" data-key="VERB" data-sound="4" aria-label="VERB">
+                  <span class="key-face" aria-hidden="true"></span>
+                  <span class="key-bevel" aria-hidden="true"></span>
+                  <span class="key-label">VERB</span>
+                </button>
+                <button class="k clr" type="button" data-key="CLR" data-sound="5" aria-label="CLR">
+                  <span class="key-face" aria-hidden="true"></span>
+                  <span class="key-bevel" aria-hidden="true"></span>
+                  <span class="key-label">CLR</span>
+                </button>
+                <button class="k entr" type="button" data-key="ENTR" data-sound="7" aria-label="ENTR">
+                  <span class="key-face" aria-hidden="true"></span>
+                  <span class="key-bevel" aria-hidden="true"></span>
+                  <span class="key-label">ENTR</span>
+                </button>
+                <button class="k noun" type="button" data-key="NOUN" data-sound="4" aria-label="NOUN">
+                  <span class="key-face" aria-hidden="true"></span>
+                  <span class="key-bevel" aria-hidden="true"></span>
+                  <span class="key-label">NOUN</span>
+                </button>
+                <button class="k stby" type="button" data-key="STBY" data-sound="5" aria-label="STBY">
+                  <span class="key-face" aria-hidden="true"></span>
+                  <span class="key-bevel" aria-hidden="true"></span>
+                  <span class="key-label">STBY</span>
+                </button>
+                <button class="k rset" type="button" data-key="RSET" data-sound="7" aria-label="RSET">
+                  <span class="key-face" aria-hidden="true"></span>
+                  <span class="key-bevel" aria-hidden="true"></span>
+                  <span class="key-label">RSET</span>
+                </button>
+              </div>
+
+              <span class="screw tl" aria-hidden="true"><img src="img/screw.png" alt=""></span>
+              <span class="screw tr" aria-hidden="true"><img src="img/screw.png" alt=""></span>
+              <span class="screw bl" aria-hidden="true"><img src="img/screw.png" alt=""></span>
+              <span class="screw br" aria-hidden="true"><img src="img/screw.png" alt=""></span>
+
+            </div>
+
+          </div>
+        </div>
+      </div>
+      <span class="caption">Display panel · PROG 16 36 · 3 × 2 function keys · 4 corner screws</span>
+    </main>
+
+  </div>
+
+<script>
+  (() => {
+    /* Block all touch gestures that could pan or zoom the page */
+    document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+
+    const PRESS_MS = 90;
+    const keys = [...document.querySelectorAll('.k')];
+
+    /* ---------------- Sound ---------------- */
+    const VOICES = 3;
+    const sounds = {};
+    [4, 5, 7].forEach(n => {
+      sounds[n] = { voices: [], next: 0 };
+      for (let i = 0; i < VOICES; i++) {
+        const a = new Audio('sd/' + n + '.wav');
+        a.preload = 'auto';
+        a.volume = 0.85;
+        sounds[n].voices.push(a);
+      }
+    });
+
+    const playFor = (key) => {
+      const n = key.dataset.sound;
+      const s = sounds[n];
+      if (!s) return;
+      const a = s.voices[s.next];
+      s.next = (s.next + 1) % s.voices.length;
+      try {
+        a.currentTime = 0;
+        const p = a.play();
+        if (p && p.catch) p.catch(() => {});
+      } catch (_) {}
+    };
+
+    const press   = (k) => k.classList.add('is-pressed');
+    const release = (k) => k.classList.remove('is-pressed');
+
+    const activate = (k) => {
+      press(k);
+      setTimeout(() => release(k), PRESS_MS);
+    };
+
+    keys.forEach(k => {
+      k.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        k.setPointerCapture?.(e.pointerId);
+        press(k);
+        playFor(k);
+      });
+      k.addEventListener('pointerup', (e) => {
+        if (e.button !== 0) return;
+        activate(k);
+      });
+      k.addEventListener('pointercancel', () => release(k));
+      k.addEventListener('pointerleave', (e) => {
+        if (e.buttons === 0) release(k);
+      });
+      k.addEventListener('click', (e) => {
+        if (e.detail === 0) {
+          activate(k);
+          playFor(k);
+        }
+      });
+    });
+  })();
+</script>
+</body>
+</html>
