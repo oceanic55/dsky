@@ -33,27 +33,27 @@
 
   html {
     /* overscroll-behavior blocks rubber-band bounce on the root.
-       overflow must remain scrollable (not hidden) so the body background
+       overflow must remain scrollable (not hidden) so the background
        extends behind Safari's translucent bottom toolbar.
        min-height: 100lvh ensures the root reaches the physical screen edge
-       including the safe-area zone, eliminating the white safe-area gap. */
+       including the safe-area zone, eliminating the white safe-area gap.
+       The gradient lives here (on html) so it covers the full lvh canvas,
+       including the safe-area zone that body (100dvh) doesn't reach. */
     overscroll-behavior: none;
     min-height: 100lvh;
-    background-color: #d4d3d5;
+    background: radial-gradient(circle at 50% 0%, #dedde0 0%, #d4d3d5 45%, #c2c1c5 100%);
+    background-color: #d4d3d5; /* solid fallback */
   }
 
   body {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
                  "Helvetica Neue", Arial, sans-serif;
     color: #292931;
-    background: radial-gradient(circle at 50% 0%, #dedde0 0%, #d4d3d5 45%, #c2c1c5 100%);
-    background-color: #d4d3d5; /* solid fallback for Safari chrome sampler & overscroll */
-    /* min-height: 100dvh centers the panel in the actually-visible screen area.
-       The html element (min-height: 100lvh) extends the gray background to the
-       physical screen edge so Safari can composite it through the translucent
-       bottom toolbar — no white gap. Body uses dvh so justify-content:center
-       aligns the panel to the visible viewport, not the larger lvh box which
-       would push it too low. */
+    /* Body is transparent so the html gradient shows through everywhere,
+       including the safe-area zone below the visible content. */
+    background: transparent;
+    /* min-height: 100dvh centers the panel in the actually-visible screen area
+       without pushing it down into the lvh overflow zone. */
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
